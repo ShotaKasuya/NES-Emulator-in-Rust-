@@ -1,5 +1,3 @@
-use std::collections::btree_map::Values;
-
 fn main() {
     println!("Hello, world!");
 }
@@ -90,16 +88,12 @@ impl CPU {
                 let base = self.mem_read(self.program_counter);
 
                 let ptr: u8 = (base as u8).wrapping_add(self.register_x);
-                let lo = self.mem_read(ptr as u16);
-                let hi = self.mem_read(ptr.wrapping_add(1) as u16);
-                (hi as u16) << 8 | (lo as u16)
+                self.mem_read_u16(ptr as u16)
             }
             AddressingMode::Indirect_Y => {
                 let base = self.mem_read(self.program_counter);
 
-                let lo = self.mem_read(base as u16);
-                let hi = self.mem_read((base as u8).wrapping_add(1) as u16);
-                let deref_base = (hi as u16) << 8 | (lo as u16);
+                let deref_base = self.mem_read_u16(base as u16);
                 let deref = deref_base.wrapping_add(self.register_y as u16);
                 deref
             }
@@ -129,17 +123,17 @@ impl CPU {
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
 
-    fn sta(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
-        self.mem_write(addr, self.register_a);
-    }
-
     pub fn run(&mut self) {
         loop {
             let opscode = self.mem_read(self.program_counter);
             self.program_counter += 1;
 
             match opscode {
+                /*--- ADC ---*/
+                0x69 => {
+                    self.adc(&AddressingMode::Immediate);
+                    self.program_counter += 1;
+                }
                 /*--- LDA ---*/
                 0xA9 => {
                     self.lda(&AddressingMode::Immediate);
@@ -212,6 +206,33 @@ impl CPU {
         }
     }
 
+    // レジスタaの値とメモリの値を足す
+    fn adc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+        let carry = self.status & 0b0000_0001;
+        let (rhs, carry_flag) = value.overflowing_add(carry);
+        let (n, carry_flag2) = self.register_a.overflowing_add(rhs);
+
+        let overflow = (self.register_a & 0x80) == (value & 0x80) && (value & 0x80) != (n & 0x80);
+
+        self.register_a = n;
+
+        self.status = if carry_flag || carry_flag2 {
+            self.status | 0b0000_0001
+        } else {
+            self.status & 0b1111_1110
+        };
+        self.status = if overflow {
+            self.status | 0b0100_0000
+        } else {
+            self.status & 0b1011_1111
+        };
+
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
     // レジスタaに値をコピーする
     fn lda(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
@@ -221,16 +242,21 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
-    // レジスタaの内容をレジスタxにコピーする
-    fn tax(&mut self) {
-        self.register_x = self.register_a;
-        self.update_zero_and_negative_flags(self.register_x);
-    }
-
     // レジスタxをインクリメント
     fn inx(&mut self) {
         // オーバーフロー制御
         self.register_x = self.register_x.wrapping_add(1);
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn sta(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_a);
+    }
+
+    // レジスタaの内容をレジスタxにコピーする
+    fn tax(&mut self) {
+        self.register_x = self.register_a;
         self.update_zero_and_negative_flags(self.register_x);
     }
 
@@ -319,8 +345,11 @@ mod test {
         assert_eq!(cpu.register_x, 1);
     }
 
+    // ==============================================================================
+    // LDAのテスト
+    // ==============================================================================
     #[test]
-    fn test_lda_from_memory() {
+    fn test_lda_from_memory_zeropage() {
         let mut cpu = CPU::new();
         cpu.mem_write(0x10, 0x55);
 
@@ -328,4 +357,150 @@ mod test {
 
         assert_eq!(cpu.register_a, 0x55);
     }
+    #[test]
+    fn test_lda_from_memory_zeropage_x() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xb5, 0x10, 0x00]);
+        cpu.reset();
+
+        cpu.register_x = 0x01;
+        cpu.mem_write(0x11, 0x65);
+
+        cpu.run();
+        assert_eq!(cpu.register_a, 0x65);
+    }
+    #[test]
+    fn test_lda_from_memory_absolute() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xad, 0x10, 0xaa, 0x00]);
+        cpu.reset();
+
+        cpu.mem_write(0xaa10, 0x66);
+
+        cpu.run();
+        assert_eq!(cpu.register_a, 0x66);
+    }
+    #[test]
+    fn test_lda_from_memory_absolute_x() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xbd, 0x10, 0xab, 0x00]);
+        cpu.reset();
+
+        cpu.register_x = 0x11;
+        cpu.mem_write(0xab21, 0x76);
+
+        cpu.run();
+        assert_eq!(cpu.register_a, 0x76);
+    }
+    #[test]
+    fn test_lda_from_memory_absolute_y() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xb9, 0x10, 0xbb, 0x00]);
+        cpu.reset();
+
+        cpu.register_y = 0x11;
+        cpu.mem_write(0xbb21, 0x77);
+
+        cpu.run();
+        assert_eq!(cpu.register_a, 0x77);
+    }
+    #[test]
+    fn test_lda_from_memory_indirect_x() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xa1, 0x01, 0x00]);
+        cpu.reset();
+
+        cpu.register_x = 0x0F;
+        cpu.mem_write_u16(0x10, 0x1001);
+        cpu.mem_write(0x1001, 0x77);
+
+        cpu.run();
+        assert_eq!(cpu.register_a, 0x77);
+    }
+    #[test]
+    fn test_lda_from_memory_indirect_y() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xb1, 0x11, 0x00]);
+        cpu.reset();
+
+        cpu.register_y = 0x0F;
+        cpu.mem_write_u16(0x11, 0x1001);
+        cpu.mem_write(0x1010, 0x77);
+
+        cpu.run();
+        assert_eq!(cpu.register_a, 0x77);
+    }
+    #[test]
+    fn test_sta_from_memory() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x85, 0x10, 0x00]);
+        cpu.reset();
+
+        cpu.register_a = 0xAF;
+
+        cpu.run();
+        assert_eq!(cpu.mem_read(0x10), 0xAF);
+    }
+    #[test]
+    fn test_adc_no_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x69, 0x10, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x1A;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x2A);
+        assert_eq!(cpu.status, 0x00);
+    }
+    #[test]
+    fn test_adc_has_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x69, 0x10, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x1A;
+        cpu.status = 0x01;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x2B);
+        assert_eq!(cpu.status, 0x00);
+    }
+    #[test]
+    fn test_adc_occur_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x69, 0x01, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0xFF;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x00);
+        // ついでにゼロフラグ確認
+        assert_eq!(cpu.status, 0x03);
+    }
+    #[test]
+    fn test_adc_occur_overflow_plus() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x69, 0x01, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x7F;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x80);
+        assert_eq!(cpu.status, 0b1100_0000);
+    }
+    #[test]
+    fn test_adc_occur_overflow_minus() {}
+    #[test]
+    fn test_adc_occur_overflow_plus_with_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x69, 0x6F, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x10;
+        cpu.status = 0x01; // carry
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x80);
+        assert_eq!(cpu.status, 0b1100_0000);
+    }
+    #[test]
+    fn test_adc_occur_overflow_minus_with_carry() {}
 }
