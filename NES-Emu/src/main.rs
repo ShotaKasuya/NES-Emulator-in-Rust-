@@ -17,6 +17,38 @@ pub enum AddressingMode {
     NoneAddressing,
 }
 
+pub enum Flag {
+    Carry = 0b0000_0001,
+    Zero = 0b0000_0010,
+    InterruptDisable = 0b0000_0100,
+    Decimal = 0b0000_1000,
+    // (No CPU effect; see: the B flag)
+    // (No CPU effect; always pushed as 1)
+    Overflow = 0b0100_0000,
+    Negative = 0b1000_0000,
+}
+impl Flag {
+    // Getter
+    pub fn carry() -> u8 {
+        Flag::Carry as u8
+    }
+    pub fn zero() -> u8 {
+        Flag::Zero as u8
+    }
+    pub fn interrupt_disable() -> u8 {
+        Flag::InterruptDisable as u8
+    }
+    pub fn decimal() -> u8 {
+        Flag::Decimal as u8
+    }
+    pub fn overflow() -> u8 {
+        Flag::Overflow as u8
+    }
+    pub fn negative() -> u8 {
+        Flag::Negative as u8
+    }
+}
+
 pub struct CPU {
     pub register_a: u8,
     pub register_x: u8,
@@ -211,7 +243,7 @@ impl CPU {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
 
-        let carry = self.status & 0b0000_0001;
+        let carry = self.status & Flag::carry();
         let (rhs, carry_flag) = value.overflowing_add(carry);
         let (n, carry_flag2) = self.register_a.overflowing_add(rhs);
 
@@ -220,14 +252,14 @@ impl CPU {
         self.register_a = n;
 
         self.status = if carry_flag || carry_flag2 {
-            self.status | 0b0000_0001
+            self.status | Flag::carry()
         } else {
-            self.status & 0b1111_1110
+            self.status & (!Flag::carry())
         };
         self.status = if overflow {
-            self.status | 0b0100_0000
+            self.status | Flag::overflow()
         } else {
-            self.status & 0b1011_1111
+            self.status & (!Flag::overflow())
         };
 
         self.update_zero_and_negative_flags(self.register_a);
@@ -263,18 +295,18 @@ impl CPU {
     // ゼロフラグとネガティブフラグのつけ外し
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         // ネガティブフラグ
-        if result == 0 {
-            self.status = self.status | 0b0000_0010;
+        self.status = if result & 0b1000_0000 != 0 {
+            self.status | Flag::negative()
         } else {
-            self.status = self.status & 0b1111_1101;
-        }
+            self.status & (!Flag::negative())
+        };
 
         // ゼロフラグ
-        if result & 0b1000_0000 != 0 {
-            self.status = self.status | 0b1000_0000;
+        self.status = if result == 0 {
+            self.status | Flag::zero()
         } else {
-            self.status = self.status & 0b0111_1111;
-        }
+            self.status & (!Flag::zero())
+        };
     }
 }
 
@@ -292,10 +324,12 @@ mod test {
     fn test_0xa9_lda_immediate_load_data() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa9, 0x05, 0x00]);
-        assert_eq!(cpu.register_a, 0x05); // レジスタに読み込まれたか
-                                          // フラグがどちらもたっていない確認
-        assert!(cpu.status & 0b0000_0010 == 0b00);
-        assert!(cpu.status & 0b1000_0000 == 0);
+        // レジスタに読み込まれたか
+        assert_eq!(cpu.register_a, 0x05);
+
+        // フラグがどちらもたっていない確認
+        assert!(cpu.status & Flag::zero() == 0);
+        assert!(cpu.status & Flag::negative() == 0);
     }
 
     #[test]
@@ -303,7 +337,8 @@ mod test {
     fn test_0xa9_lda_zero_flag() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
-        assert!(cpu.status & 0b0000_0010 == 0b10);
+
+        assert!((cpu.status & Flag::zero()) == Flag::zero());
     }
 
     #[test]
@@ -311,7 +346,8 @@ mod test {
     fn test_0xa9_lda_negative_flag() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa9, 0x80, 0x00]);
-        assert!(cpu.status & 0b1000_0000 == 0b1000_0000);
+
+        assert!(cpu.status & Flag::negative() == Flag::negative());
     }
 
     #[test]
@@ -320,21 +356,25 @@ mod test {
         let mut cpu = CPU::new();
         cpu.load(vec![0xaa, 0x00]);
         cpu.reset();
-        cpu.register_a = 10;
+        cpu.register_a = 0x10;
         cpu.run();
 
-        assert_eq!(cpu.register_x, 10);
+        assert_eq!(cpu.register_x, cpu.register_a);
     }
 
     #[test]
     fn test_5_ops_working_together() {
         let mut cpu = CPU::new();
+        // LDA immediate 0xc0
+        // TAX implied
+        // INX implied
         cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
 
         assert_eq!(cpu.register_x, 0xc1);
     }
 
     #[test]
+    // INXのオーバーフローテスト
     fn test_inx_overflow() {
         let mut cpu = CPU::new();
         cpu.load(vec![0xe8, 0xe8, 0x00]);
@@ -430,6 +470,7 @@ mod test {
         cpu.run();
         assert_eq!(cpu.register_a, 0x77);
     }
+
     #[test]
     fn test_sta_from_memory() {
         let mut cpu = CPU::new();
@@ -441,7 +482,9 @@ mod test {
         cpu.run();
         assert_eq!(cpu.mem_read(0x10), 0xAF);
     }
+
     #[test]
+    // キャリーフラグを建てていない状態のADCテスト
     fn test_adc_no_carry() {
         let mut cpu = CPU::new();
         cpu.load(vec![0x69, 0x10, 0x00]);
@@ -453,30 +496,32 @@ mod test {
         assert_eq!(cpu.status, 0x00);
     }
     #[test]
+    // キャリーフラグを持った状態のADCテスト
     fn test_adc_has_carry() {
         let mut cpu = CPU::new();
         cpu.load(vec![0x69, 0x10, 0x00]);
         cpu.reset();
         cpu.register_a = 0x1A;
-        cpu.status = 0x01;
+        cpu.status = Flag::carry();
         cpu.run();
 
         assert_eq!(cpu.register_a, 0x2B);
         assert_eq!(cpu.status, 0x00);
     }
     #[test]
+    // キャリーフラグを建てるADCテスト
     fn test_adc_occur_carry() {
         let mut cpu = CPU::new();
-        cpu.load(vec![0x69, 0x01, 0x00]);
+        cpu.load(vec![0x69, 0x02, 0x00]);
         cpu.reset();
         cpu.register_a = 0xFF;
         cpu.run();
 
-        assert_eq!(cpu.register_a, 0x00);
-        // ついでにゼロフラグ確認
-        assert_eq!(cpu.status, 0x03);
+        assert_eq!(cpu.register_a, 0x01);
+        assert_eq!(cpu.status, Flag::carry());
     }
     #[test]
+    // 正の値同士のADCでオーバーフローが発生する際のテスト
     fn test_adc_occur_overflow_plus() {
         let mut cpu = CPU::new();
         cpu.load(vec![0x69, 0x01, 0x00]);
@@ -485,22 +530,67 @@ mod test {
         cpu.run();
 
         assert_eq!(cpu.register_a, 0x80);
-        assert_eq!(cpu.status, 0b1100_0000);
+
+        let flags = Flag::overflow() | Flag::negative();
+        assert_eq!(cpu.status, flags);
     }
     #[test]
-    fn test_adc_occur_overflow_minus() {}
+    // 負の値同士のADCでオーバーフローが発生する際のテスト
+    fn test_adc_occur_overflow_minus() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x69, 0x85, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x85;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x0a);
+
+        let flags = Flag::overflow() | Flag::carry();
+        assert_eq!(cpu.status, flags);
+    }
     #[test]
+    // キャリーが存在する状態で
+    // 正の値同士のADCでオーバーフローが起こる際のテスト
     fn test_adc_occur_overflow_plus_with_carry() {
         let mut cpu = CPU::new();
         cpu.load(vec![0x69, 0x6F, 0x00]);
         cpu.reset();
         cpu.register_a = 0x10;
-        cpu.status = 0x01; // carry
+        cpu.status = Flag::carry();
         cpu.run();
 
         assert_eq!(cpu.register_a, 0x80);
-        assert_eq!(cpu.status, 0b1100_0000);
+        let flags = Flag::negative() | Flag::overflow();
+        assert_eq!(cpu.status, flags);
     }
     #[test]
-    fn test_adc_occur_overflow_minus_with_carry() {}
+    // キャリーが存在する状態で
+    // 負の値同士のADCでキャリーが発生する際のテスト
+    fn test_adc_occur_overflow_minus_with_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x69, 0x80, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x80;
+        cpu.status = Flag::carry();
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x01);
+
+        let flags = Flag::overflow() | Flag::carry();
+        assert_eq!(cpu.status, flags);
+    }
+    #[test]
+    // 正の値と負の値のADCでオーバーフローが起きる際のテスト
+    fn test_adc_occur_no_overflow() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x69, 0x7F, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x82;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x01);
+
+        let flags = Flag::carry();
+        assert_eq!(cpu.status, flags);
+    }
 }
