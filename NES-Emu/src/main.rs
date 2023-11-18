@@ -18,14 +18,14 @@ pub enum AddressingMode {
 }
 
 pub enum Flag {
-    Carry = 0b0000_0001,
-    Zero = 0b0000_0010,
-    InterruptDisable = 0b0000_0100,
-    Decimal = 0b0000_1000,
-    // (No CPU effect; see: the B flag)
+    Carry = 1,
+    Zero = 1 << 1,
+    InterruptDisable = 1 << 2,
+    Decimal = 1 << 3,
+    Break = 1 << 4,
     // (No CPU effect; always pushed as 1)
-    Overflow = 0b0100_0000,
-    Negative = 0b1000_0000,
+    Overflow = 1 << 6,
+    Negative = 1 << 7,
 }
 impl Flag {
     // Getter
@@ -199,6 +199,11 @@ impl CPU {
                     self.lda(&AddressingMode::Indirect_Y);
                     self.program_counter += 1;
                 }
+                /*--- SDC ---*/
+                0xe9 => {
+                    self.sbc(&AddressingMode::Immediate);
+                    self.program_counter += 1;
+                }
                 /*--- STA ---*/
                 0x85 => {
                     self.sta(&AddressingMode::ZeroPage);
@@ -238,16 +243,22 @@ impl CPU {
         }
     }
 
-    // レジスタaの値とメモリの値を足す
+    // レジスタaの値とメモリの値の和をレジスタaに書き込む
+    // like SBC
     fn adc(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
 
+        // n = register_a + value + carry
         let carry = self.status & Flag::carry();
         let (rhs, carry_flag) = value.overflowing_add(carry);
+        // n = register_a + rhs
         let (n, carry_flag2) = self.register_a.overflowing_add(rhs);
 
-        let overflow = (self.register_a & 0x80) == (value & 0x80) && (value & 0x80) != (n & 0x80);
+        let both_minus = (self.register_a & 0x80) == (value & 0x80);
+        let value_changed = (value & 0x80) != (n & 0x80);
+        // 負の値同士の計算で正の値になってしまった時にこのフラグが立つ
+        let overflow = both_minus && value_changed;
 
         self.register_a = n;
 
@@ -281,6 +292,39 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_x);
     }
 
+    // レジスタaとメモリの値の差をレジスタaに書き込む
+    // like ADC
+    fn sbc(&mut self, mode: &AddressingMode) {
+        // A-M-(1-C)
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+        let carry = self.status & Flag::carry();
+        let (v1, carry_flag) = self.register_a.overflowing_sub(value);
+        let (n, carry_flag2) = v1.overflowing_sub(1 - carry);
+
+        // 違う符号同士の差で符号が変わることはないはずなので
+        let overflow = ((self.register_a & 0x80) != (value & 0x80))
+            && ((self.register_a & 0x80) != (n & 0x80));
+
+        self.register_a = n;
+
+        // キャリーがない場合にフラグが立つ
+        self.status = if !carry_flag && !carry_flag2 {
+            self.status | Flag::carry()
+        } else {
+            self.status & (!Flag::carry())
+        };
+        self.status = if overflow {
+            self.status | Flag::overflow()
+        } else {
+            self.status & (!Flag::overflow())
+        };
+
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    // レジスタaの値をメモリに書き込む
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.register_a);
@@ -581,7 +625,7 @@ mod test {
     }
     #[test]
     // 正の値と負の値のADCでオーバーフローが起きる際のテスト
-    fn test_adc_occur_no_overflow() {
+    fn test_adc_no_overflow() {
         let mut cpu = CPU::new();
         cpu.load(vec![0x69, 0x7F, 0x00]);
         cpu.reset();
@@ -591,6 +635,89 @@ mod test {
         assert_eq!(cpu.register_a, 0x01);
 
         let flags = Flag::carry();
+        assert_eq!(cpu.status, flags);
+    }
+    #[test]
+    // キャリーフラグを建てていない状態のSBCテスト
+    fn test_sbc_no_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe9, 0x10, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x20;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x0F);
+        // SBCでは特に何もなければキャリーフラグが立つ
+        assert_eq!(cpu.status, Flag::carry());
+    }
+    #[test]
+    // キャリーフラグを持った状態のSBCテスト
+    fn test_sbc_has_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe9, 0x10, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x20;
+        cpu.status = Flag::carry();
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x10);
+        // SBCでは特に何もなければキャリーフラグが立つ
+        assert_eq!(cpu.status, Flag::carry());
+    }
+    #[test]
+    // キャリーフラグを建てるSBCテスト
+    fn test_sbc_occur_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe9, 0x02, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x01;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0xFE);
+        let flags = Flag::negative();
+        assert_eq!(cpu.status, flags);
+    }
+    #[test]
+    // 正の値同士のSBCでオーバーフローが発生する際のテスト
+    fn test_sbc_occur_overflow() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe9, 0x81, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x7F;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0xFD);
+
+        let flags = Flag::overflow() | Flag::negative();
+        assert_eq!(cpu.status, flags);
+    }
+    #[test]
+    // キャリーが存在する状態のSBCでオーバーフローが起こる際のテスト
+    fn test_sbc_occur_overflow_with_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe9, 0x81, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x7F;
+        cpu.status = Flag::carry();
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0xFE);
+        let flags = Flag::negative() | Flag::overflow();
+        assert_eq!(cpu.status, flags);
+    }
+    #[test]
+    // SBCでオーバーフローが起きる際のテスト
+    fn test_sbc_no_overflow() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0xe9, 0x7F, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x7E;
+        cpu.status = Flag::carry();
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0xFF);
+
+        let flags = Flag::negative();
         assert_eq!(cpu.status, flags);
     }
 }
