@@ -166,6 +166,16 @@ impl CPU {
                     self.adc(&AddressingMode::Immediate);
                     self.program_counter += 1;
                 }
+                /*--- AND ---*/
+                0x29 => {
+                    self.and(&AddressingMode::Immediate);
+                    self.program_counter += 1;
+                }
+                /*--- EOR ---*/
+                0x49 => {
+                    self.eor(&AddressingMode::Immediate);
+                    self.program_counter += 1;
+                }
                 /*--- LDA ---*/
                 0xA9 => {
                     self.lda(&AddressingMode::Immediate);
@@ -197,6 +207,11 @@ impl CPU {
                 }
                 0xB1 => {
                     self.lda(&AddressingMode::Indirect_Y);
+                    self.program_counter += 1;
+                }
+                /*--- ORA ---*/
+                0x09 => {
+                    self.ora(&AddressingMode::Immediate);
                     self.program_counter += 1;
                 }
                 /*--- SDC ---*/
@@ -276,12 +291,42 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
+    // レジスタaの値とメモリの値の論理積をレジスタaに書き込む
+    // like EOR,ORA
+    fn and(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+        self.register_a &= value;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    // レジスタaの値とメモリの値の排他的論理和をレジスタaに書き込む
+    // like AND,ORA
+    fn eor(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+        self.register_a ^= value;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
     // レジスタaに値をコピーする
     fn lda(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
 
         self.register_a = value;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    // レジスタaの値とメモリの値の論理和をレジスタaに書き込む
+    // like AND,EOR
+    fn ora(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+        self.register_a |= value;
         self.update_zero_and_negative_flags(self.register_a);
     }
 
@@ -719,5 +764,35 @@ mod test {
 
         let flags = Flag::negative();
         assert_eq!(cpu.status, flags);
+    }
+    #[test]
+    fn test_and() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x29, 0x03, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x05;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x01);
+    }
+    #[test]
+    fn test_eor() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x49, 0x03, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x05;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x06);
+    }
+    #[test]
+    fn test_ora() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x09, 0x03, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x05;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x07);
     }
 }
