@@ -5,6 +5,7 @@ fn main() {
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
+    Accumulator,
     Immediate,
     ZeroPage,
     ZeroPage_X,
@@ -93,6 +94,9 @@ impl CPU {
 
     fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
         match mode {
+            AddressingMode::Accumulator => {
+                panic!("Don't Ask Here Address of Accumulator");
+            }
             AddressingMode::Immediate => self.program_counter,
             AddressingMode::ZeroPage => self.mem_read(self.program_counter) as u16,
             AddressingMode::Absolute => self.mem_read_u16(self.program_counter),
@@ -169,6 +173,15 @@ impl CPU {
                 /*--- AND ---*/
                 0x29 => {
                     self.and(&AddressingMode::Immediate);
+                    self.program_counter += 1;
+                }
+                /*--- ASL ---*/
+                0x0a => {
+                    self.asl(&AddressingMode::Accumulator);
+                    self.program_counter += 1;
+                }
+                0x06 => {
+                    self.asl(&AddressingMode::ZeroPage);
                     self.program_counter += 1;
                 }
                 /*--- EOR ---*/
@@ -299,6 +312,31 @@ impl CPU {
 
         self.register_a &= value;
         self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    // 算術左シフト
+    fn asl(&mut self, mode: &AddressingMode) {
+        let (value, carry) = match mode {
+            AddressingMode::Accumulator => {
+                let (value, carry) = self.register_a.overflowing_mul(2);
+                self.register_a = value;
+                (value, carry)
+            }
+            _ => {
+                let addr = self.get_operand_address(mode);
+                let value = self.mem_read(addr);
+                let (value, carry) = value.overflowing_mul(2);
+                self.mem_write(addr, value);
+                (value, carry)
+            }
+        };
+
+        self.status = if carry {
+            self.status | Flag::carry()
+        } else {
+            self.status & (!Flag::carry())
+        };
+        self.update_zero_and_negative_flags(value);
     }
 
     // レジスタaの値とメモリの値の排他的論理和をレジスタaに書き込む
@@ -794,5 +832,47 @@ mod test {
         cpu.run();
 
         assert_eq!(cpu.register_a, 0x07);
+    }
+    #[test]
+    fn test_asl_accumulator() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x0a, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x05;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x05 * 2);
+    }
+    #[test]
+    fn test_asl_accumulator_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x0a, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x81;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x02);
+        assert_eq!(cpu.status, Flag::carry());
+    }
+    #[test]
+    fn test_asl_zero_page() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x06, 0x01, 0x00]);
+        cpu.reset();
+        cpu.mem_write(0x0001, 0x03);
+        cpu.run();
+
+        assert_eq!(cpu.mem_read(0x0001), 0x03 * 2);
+    }
+    #[test]
+    fn test_asl_zero_page_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x06, 0x01, 0x00]);
+        cpu.reset();
+        cpu.mem_write(0x0001, 0x83);
+        cpu.run();
+
+        assert_eq!(cpu.mem_read(0x0001), 0x03 * 2);
+        assert_eq!(cpu.status, Flag::carry());
     }
 }
