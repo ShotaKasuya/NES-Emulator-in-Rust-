@@ -2,7 +2,7 @@ fn main() {
     println!("Hello, world!");
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
     Accumulator,
@@ -178,7 +178,6 @@ impl CPU {
                 /*--- ASL ---*/
                 0x0a => {
                     self.asl(&AddressingMode::Accumulator);
-                    self.program_counter += 1;
                 }
                 0x06 => {
                     self.asl(&AddressingMode::ZeroPage);
@@ -222,9 +221,25 @@ impl CPU {
                     self.lda(&AddressingMode::Indirect_Y);
                     self.program_counter += 1;
                 }
+                /*--- LSR ---*/
+                0x4a => {
+                    self.lsr(&AddressingMode::Accumulator);
+                }
+                0x46 => {
+                    self.lsr(&AddressingMode::ZeroPage);
+                    self.program_counter += 1;
+                }
                 /*--- ORA ---*/
                 0x09 => {
                     self.ora(&AddressingMode::Immediate);
+                    self.program_counter += 1;
+                }
+                /*--- ROL ---*/
+                0x2a => {
+                    self.rol(&AddressingMode::Accumulator);
+                }
+                0x26 => {
+                    self.rol(&AddressingMode::ZeroPage);
                     self.program_counter += 1;
                 }
                 /*--- SDC ---*/
@@ -315,20 +330,18 @@ impl CPU {
     }
 
     // 算術左シフト
+    // like LSR,ROL,ROR
     fn asl(&mut self, mode: &AddressingMode) {
-        let (value, carry) = match mode {
-            AddressingMode::Accumulator => {
-                let (value, carry) = self.register_a.overflowing_mul(2);
-                self.register_a = value;
-                (value, carry)
-            }
-            _ => {
-                let addr = self.get_operand_address(mode);
-                let value = self.mem_read(addr);
-                let (value, carry) = value.overflowing_mul(2);
-                self.mem_write(addr, value);
-                (value, carry)
-            }
+        let (value, carry) = if mode == &AddressingMode::Accumulator {
+            let (value, carry) = self.register_a.overflowing_mul(2);
+            self.register_a = value;
+            (value, carry)
+        } else {
+            let addr = self.get_operand_address(mode);
+            let value = self.mem_read(addr);
+            let (value, carry) = value.overflowing_mul(2);
+            self.mem_write(addr, value);
+            (value, carry)
         };
 
         self.status = if carry {
@@ -358,6 +371,30 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
+    // 算術右シフト
+    // like ASR,ROL,ROR
+    fn lsr(&mut self, mode: &AddressingMode) {
+        let (value, carry) = if mode == &AddressingMode::Accumulator {
+            let carry = (self.register_a & 0x01) != 0; // 最下位ビットが立っているか
+            self.register_a /= 2;
+            (self.register_a, carry)
+        } else {
+            let addr = self.get_operand_address(mode);
+            let value = self.mem_read(addr);
+            let carry = (value & 0x01) != 0;
+            let value = value / 2;
+            self.mem_write(addr, value);
+            (value, carry)
+        };
+
+        self.status = if carry {
+            self.status | Flag::carry()
+        } else {
+            self.status & (!Flag::carry())
+        };
+        self.update_zero_and_negative_flags(value);
+    }
+
     // レジスタaの値とメモリの値の論理和をレジスタaに書き込む
     // like AND,EOR
     fn ora(&mut self, mode: &AddressingMode) {
@@ -366,6 +403,31 @@ impl CPU {
 
         self.register_a |= value;
         self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    // 算術左シフト(キャリーによる補完あり)
+    // like ASL,LSR,ROR
+    fn rol(&mut self, mode: &AddressingMode) {
+        let (value, carry) = if mode == &AddressingMode::Accumulator {
+            let (value, carry) = self.register_a.overflowing_mul(2);
+            let value = value | (self.status & Flag::carry());
+            self.register_a = value;
+            (value, carry)
+        } else {
+            let addr = self.get_operand_address(mode);
+            let value = self.mem_read(addr);
+            let (value, carry) = value.overflowing_mul(2);
+            let value = value | (self.status & Flag::carry());
+            self.mem_write(addr, value);
+            (value, carry)
+        };
+
+        self.status = if carry {
+            self.status | Flag::carry()
+        } else {
+            self.status & (!Flag::carry())
+        };
+        self.update_zero_and_negative_flags(value);
     }
 
     // レジスタxをインクリメント
@@ -874,5 +936,95 @@ mod test {
 
         assert_eq!(cpu.mem_read(0x0001), 0x03 * 2);
         assert_eq!(cpu.status, Flag::carry());
+    }
+    #[test]
+    fn test_lsr_accumulator() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x4a, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x2;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x02 / 2);
+        assert_eq!(cpu.status, 0);
+    }
+    #[test]
+    fn test_lsr_zero_page() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x46, 0x01, 0x00]);
+        cpu.reset();
+        cpu.mem_write(0x0001, 0x02);
+        cpu.run();
+
+        assert_eq!(cpu.mem_read(0x0001), 0x02 / 2);
+        assert_eq!(cpu.status, 0);
+    }
+    #[test]
+    fn test_lsr_accumulator_occur_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x4a, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x03;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x01);
+        assert_eq!(cpu.status, Flag::carry());
+    }
+    #[test]
+    fn test_lsr_zero_page_occur_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x46, 0x01, 0x00]);
+        cpu.reset();
+        cpu.mem_write(0x0001, 0x03);
+        cpu.run();
+
+        assert_eq!(cpu.mem_read(0x0001), 0x01);
+        assert_eq!(cpu.status, Flag::carry());
+    }
+    #[test]
+    fn test_rol_accumulator() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x2a, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x03;
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x06);
+        assert_eq!(cpu.status, 0);
+    }
+    #[test]
+    fn test_rol_zero_page() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x26, 0x01, 0x00]);
+        cpu.reset();
+        cpu.mem_write(0x0001, 0x03);
+        cpu.run();
+
+        assert_eq!(cpu.mem_read(0x0001), 0x06);
+        assert_eq!(cpu.status, 0);
+    }
+    #[test]
+    fn test_rol_accumulator_with_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x2a, 0x00]);
+        cpu.reset();
+        cpu.register_a = 0x03;
+        cpu.status = Flag::carry();
+        cpu.run();
+
+        assert_eq!(cpu.register_a, 0x07);
+        assert_eq!(cpu.status, 0);
+    }
+    #[test]
+    fn test_rol_zero_page_with_carry() {
+        let mut cpu = CPU::new();
+        cpu.load(vec![0x26, 0x01, 0x00]);
+        cpu.reset();
+        cpu.mem_write(0x0001, 0x03);
+        cpu.status = Flag::carry();
+        cpu.run();
+
+        assert_eq!(cpu.mem_read(0x0001), 0x07);
+        assert_eq!(cpu.status, 0);
     }
 }
