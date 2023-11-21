@@ -135,8 +135,12 @@ impl CPU {
         deref
       }
       AddressingMode::Relative => {
+        // let base = self.mem_read(self.program_counter);
+        // ((base as i16) + (self.program_counter as i16)) as u16
         let base = self.mem_read(self.program_counter);
-        (base as i8) as u16 + self.program_counter
+        let base = base as i8;
+        let addr = base as i32 + self.program_counter as i32;
+        addr as u16
       }
       AddressingMode::NoneAddressing => {
         panic!("mode {:?} is not supported", mode);
@@ -195,6 +199,16 @@ impl CPU {
         /*--- BCS ---*/
         0xb0 => {
           self.bcs(&AddressingMode::Relative);
+          self.program_counter += 1;
+        }
+        /*--- BEQ ---*/
+        0xF0 => {
+          self.beq(&AddressingMode::Relative);
+          self.program_counter += 1;
+        }
+        /*--- BNE ---*/
+        0xD0 => {
+          self.bne(&AddressingMode::Relative);
           self.program_counter += 1;
         }
         /*--- EOR ---*/
@@ -394,13 +408,30 @@ impl CPU {
     }
   }
 
-  // キャリーがtrueなら分岐
+  // キャリーが立っていたら分岐
   fn bcs(&mut self, mode: &AddressingMode) {
-    if self.status & Flag::carry() == 1 {
+    if self.status & Flag::carry() != 0 {
       let addr = self.get_operand_address(mode);
       self.program_counter = addr
     }
   }
+
+  // ゼロフラグが立っていたら分岐
+  fn beq(&mut self, mode: &AddressingMode) {
+    if self.status & Flag::zero() != 0 {
+      let addr = self.get_operand_address(mode);
+      self.program_counter = addr
+    }
+  }
+
+  // ゼロフラグがクリアなら分岐
+  fn bne(&mut self, mode: &AddressingMode) {
+    if self.status & Flag::zero() == 0 {
+      let addr = self.get_operand_address(mode);
+      self.program_counter = addr
+    }
+  }
+
   // レジスタaの値とメモリの値の排他的論理和をレジスタaに書き込む
   // like AND,ORA
   fn eor(&mut self, mode: &AddressingMode) {
@@ -1251,6 +1282,19 @@ mod test {
     assert_eq!(cpu.program_counter, 0x8003);
   }
   #[test]
+  fn test_bcc_negative_jump() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x90, 0xfc, 0x00]);
+    cpu.reset();
+    cpu.mem_write(0x7FFF, 0x00);
+    cpu.mem_write(0x7FFE, 0xe8);
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x01);
+    assert_eq!(cpu.status, 0);
+    assert_eq!(cpu.program_counter, 0x8000);
+  }
+  #[test]
   fn test_bcs() {
     let mut cpu = CPU::new();
     cpu.load(vec![0xb0, 0x02, 0x00, 0x00, 0xe8, 0x00]);
@@ -1272,5 +1316,65 @@ mod test {
     assert_eq!(cpu.register_x, 0x01);
     assert_eq!(cpu.status, Flag::carry());
     assert_eq!(cpu.program_counter, 0x8006);
+  }
+  #[test]
+  fn test_bcs_negative_jump() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xb0, 0xfc, 0x00]);
+    cpu.reset();
+    cpu.mem_write(0x7FFF, 0x00);
+    cpu.mem_write(0x7FFE, 0xe8);
+    cpu.status = Flag::carry();
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x01);
+    assert_eq!(cpu.status, Flag::carry());
+    assert_eq!(cpu.program_counter, 0x8000);
+  }
+  #[test]
+  fn test_beq() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xf0, 0x02, 0x00, 0x00, 0xe8, 0x00]);
+    cpu.reset();
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x00);
+    assert_eq!(cpu.status, 0);
+    assert_eq!(cpu.program_counter, 0x8003);
+  }
+  #[test]
+  fn test_beq_with_zero_flag() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xf0, 0x02, 0x00, 0x00, 0xe8, 0x00]);
+    cpu.reset();
+    cpu.status = Flag::zero();
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x01);
+    assert_eq!(cpu.status, 0); // ZEROはINXで落ちる
+    assert_eq!(cpu.program_counter, 0x8006);
+  }
+  #[test]
+  fn test_bne() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xd0, 0x02, 0x00, 0x00, 0xe8, 0x00]);
+    cpu.reset();
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x01);
+    assert_eq!(cpu.status, 0); // ZEROはINXで落ちる
+    assert_eq!(cpu.program_counter, 0x8006);
+  }
+  #[test]
+  fn test_bne_with_zero_flag() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xd0, 0x02, 0x00, 0x00, 0xe8, 0x00]);
+    cpu.reset();
+    cpu.status = Flag::zero();
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x00);
+    assert_eq!(cpu.status, Flag::zero());
+    assert_eq!(cpu.program_counter, 0x8003);
   }
 }
