@@ -211,6 +211,15 @@ impl CPU {
           self.bne(&AddressingMode::Relative);
           self.program_counter += 1;
         }
+        /*--- BIT ---*/
+        0x24 => {
+          self.bit(&AddressingMode::ZeroPage);
+          self.program_counter += 1;
+        }
+        0x2C => {
+          self.bit(&AddressingMode::Absolute);
+          self.program_counter += 2;
+        }
         /*--- EOR ---*/
         0x49 => {
           self.eor(&AddressingMode::Immediate);
@@ -430,6 +439,22 @@ impl CPU {
       let addr = self.get_operand_address(mode);
       self.program_counter = addr
     }
+  }
+
+  // レジスタaとメモリの値の論理積が0ならゼロフラグを立てる
+  // メモリの7ビットと6ビットを基に
+  // オーバーフローフラグとネガティブフラグを立てる
+  fn bit(&mut self, mode: &AddressingMode) {
+    let addr = self.get_operand_address(mode);
+    let value = self.mem_read(addr);
+    let result = value & self.register_a;
+    self.status = if result == 0 {
+      self.status | Flag::zero()
+    } else {
+      self.status & (!Flag::zero())
+    };
+    self.status |= value & Flag::overflow();
+    self.status |= value & Flag::negative();
   }
 
   // レジスタaの値とメモリの値の排他的論理和をレジスタaに書き込む
@@ -1376,5 +1401,38 @@ mod test {
     assert_eq!(cpu.register_x, 0x00);
     assert_eq!(cpu.status, Flag::zero());
     assert_eq!(cpu.program_counter, 0x8003);
+  }
+  #[test]
+  fn test_bit() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x24, 0x00, 0x00]);
+    cpu.reset();
+    cpu.register_a = 0x00;
+    cpu.mem_write(0x0000, 0x00);
+
+    cpu.run();
+    assert_eq!(cpu.status, Flag::zero());
+  }
+  #[test]
+  fn test_bit_negative_flag() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x24, 0x00, 0x00]);
+    cpu.reset();
+    cpu.register_a = 0x00;
+    cpu.mem_write(0x0000, 0x80);
+
+    cpu.run();
+    assert_eq!(cpu.status, Flag::zero() | Flag::negative());
+  }
+  #[test]
+  fn test_bit_overflow_flag() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x24, 0x00, 0x00]);
+    cpu.reset();
+    cpu.register_a = 0x40;
+    cpu.mem_write(0x0000, 0x40);
+
+    cpu.run();
+    assert_eq!(cpu.status, Flag::overflow());
   }
 }
