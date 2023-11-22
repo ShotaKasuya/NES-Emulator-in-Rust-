@@ -234,6 +234,16 @@ impl CPU {
           self.bpl(&AddressingMode::Relative);
           self.program_counter += 1;
         }
+        /*--- BVC ---*/
+        0x50 => {
+          self.bvc(&AddressingMode::Relative);
+          self.program_counter += 1;
+        }
+        /*--- BVS ---*/
+        0x70 => {
+          self.bvs(&AddressingMode::Relative);
+          self.program_counter += 1;
+        }
         /*--- EOR ---*/
         0x49 => {
           self.eor(&AddressingMode::Immediate);
@@ -487,7 +497,7 @@ impl CPU {
   fn bpl(&mut self, mode: &AddressingMode) {
     if self.status & Flag::negative() == 0 {
       let addr = self.get_operand_address(mode);
-      self.program_counter = addr
+      self.program_counter = addr;
     }
   }
 
@@ -496,6 +506,22 @@ impl CPU {
     self.program_counter = self.mem_read_u16(0xFFFE);
     // TODO!
     self.status |= Flag::Break as u8;
+  }
+
+  // オーバーフローフラグがクリアなら分岐
+  fn bvc(&mut self, mode: &AddressingMode) {
+    if self.status & Flag::overflow() == 0 {
+      let addr = self.get_operand_address(mode);
+      self.program_counter = addr;
+    }
+  }
+
+  // オーバーフローフラグが立っていたら分岐
+  fn bvs(&mut self, mode: &AddressingMode) {
+    if self.status & Flag::overflow() != 0 {
+      let addr = self.get_operand_address(mode);
+      self.program_counter = addr;
+    }
   }
 
   // レジスタaの値とメモリの値の排他的論理和をレジスタaに書き込む
@@ -1521,5 +1547,51 @@ mod test {
     assert_eq!(cpu.register_x, 0x00);
     assert_eq!(cpu.status, Flag::negative());
     assert_eq!(cpu.program_counter, 0x8003);
+  }
+  #[test]
+  fn test_bvc() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x50, 0x02, 0x00, 0x00, 0xe8, 0x00]);
+    cpu.reset();
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x01);
+    assert_eq!(cpu.status, 0);
+    assert_eq!(cpu.program_counter, 0x8006);
+  }
+  #[test]
+  fn test_bvc_with_overflow_flag() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x50, 0x02, 0x00, 0x00, 0xe8, 0x00]);
+    cpu.reset();
+    cpu.status = Flag::overflow();
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x00);
+    assert_eq!(cpu.status, Flag::overflow());
+    assert_eq!(cpu.program_counter, 0x8003);
+  }
+  #[test]
+  fn test_bvs() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x70, 0x02, 0x00, 0x00, 0xe8, 0x00]);
+    cpu.reset();
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x00);
+    assert_eq!(cpu.status, 0);
+    assert_eq!(cpu.program_counter, 0x8003);
+  }
+  #[test]
+  fn test_bvs_with_overflow_flag() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x70, 0x02, 0x00, 0x00, 0xe8, 0x00]);
+    cpu.reset();
+    cpu.status = Flag::overflow();
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x01);
+    assert_eq!(cpu.status, Flag::overflow());
+    assert_eq!(cpu.program_counter, 0x8006);
   }
 }
