@@ -16,6 +16,7 @@ pub enum AddressingMode {
   Indirect_X,
   Indirect_Y,
   Relative,
+  Implied,
   NoneAddressing,
 }
 
@@ -97,6 +98,9 @@ impl CPU {
     match mode {
       AddressingMode::Accumulator => {
         panic!("Don't Ask Here Address of Accumulator");
+      }
+      AddressingMode::Implied => {
+        panic!("Don't Ask Here Address of Implied");
       }
       AddressingMode::Immediate => self.program_counter,
       AddressingMode::ZeroPage => self.mem_read(self.program_counter) as u16,
@@ -206,6 +210,11 @@ impl CPU {
           self.beq(&AddressingMode::Relative);
           self.program_counter += 1;
         }
+        /*--- BMI ---*/
+        0x30 => {
+          self.bmi(&AddressingMode::Relative);
+          self.program_counter += 1;
+        }
         /*--- BNE ---*/
         0xD0 => {
           self.bne(&AddressingMode::Relative);
@@ -219,6 +228,11 @@ impl CPU {
         0x2C => {
           self.bit(&AddressingMode::Absolute);
           self.program_counter += 2;
+        }
+        /*--- BPL ---*/
+        0x10 => {
+          self.bpl(&AddressingMode::Relative);
+          self.program_counter += 1;
         }
         /*--- EOR ---*/
         0x49 => {
@@ -336,7 +350,11 @@ impl CPU {
         0xAA => self.tax(),
         0xE8 => self.inx(),
 
-        0x00 => return,
+        0x00 => {
+          // self.brk(&AddressingMode::Implied);
+          break;
+          // TODO!
+        }
 
         _ => todo!(""),
       }
@@ -433,14 +451,6 @@ impl CPU {
     }
   }
 
-  // ゼロフラグがクリアなら分岐
-  fn bne(&mut self, mode: &AddressingMode) {
-    if self.status & Flag::zero() == 0 {
-      let addr = self.get_operand_address(mode);
-      self.program_counter = addr
-    }
-  }
-
   // レジスタaとメモリの値の論理積が0ならゼロフラグを立てる
   // メモリの7ビットと6ビットを基に
   // オーバーフローフラグとネガティブフラグを立てる
@@ -455,6 +465,37 @@ impl CPU {
     };
     self.status |= value & Flag::overflow();
     self.status |= value & Flag::negative();
+  }
+
+  // ネガティブフラグが立っていたら分岐
+  fn bmi(&mut self, mode: &AddressingMode) {
+    if self.status & Flag::negative() != 0 {
+      let addr = self.get_operand_address(mode);
+      self.program_counter = addr
+    }
+  }
+
+  // ゼロフラグがクリアなら分岐
+  fn bne(&mut self, mode: &AddressingMode) {
+    if self.status & Flag::zero() == 0 {
+      let addr = self.get_operand_address(mode);
+      self.program_counter = addr
+    }
+  }
+
+  // ネガティブフラグがクリアなら分岐
+  fn bpl(&mut self, mode: &AddressingMode) {
+    if self.status & Flag::negative() == 0 {
+      let addr = self.get_operand_address(mode);
+      self.program_counter = addr
+    }
+  }
+
+  // break
+  fn brk(&mut self, mode: &AddressingMode) {
+    self.program_counter = self.mem_read_u16(0xFFFE);
+    // TODO!
+    self.status |= Flag::Break as u8;
   }
 
   // レジスタaの値とメモリの値の排他的論理和をレジスタaに書き込む
@@ -1434,5 +1475,51 @@ mod test {
 
     cpu.run();
     assert_eq!(cpu.status, Flag::overflow());
+  }
+  #[test]
+  fn test_bmi() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x30, 0x02, 0x00, 0x00, 0xe8, 0x00]);
+    cpu.reset();
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x00);
+    assert_eq!(cpu.status, 0);
+    assert_eq!(cpu.program_counter, 0x8003);
+  }
+  #[test]
+  fn test_bmi_with_negative_flag() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x30, 0x02, 0x00, 0x00, 0xe8, 0x00]);
+    cpu.reset();
+    cpu.status = Flag::negative();
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x01);
+    assert_eq!(cpu.status, 0); // INXしたためnegtiveフラグが落ちる
+    assert_eq!(cpu.program_counter, 0x8006);
+  }
+  #[test]
+  fn test_bpl() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x10, 0x02, 0x00, 0x00, 0xe8, 0x00]);
+    cpu.reset();
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x01);
+    assert_eq!(cpu.status, 0);
+    assert_eq!(cpu.program_counter, 0x8006);
+  }
+  #[test]
+  fn test_bpl_with_negative_flag() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x10, 0x02, 0x00, 0x00, 0xe8, 0x00]);
+    cpu.reset();
+    cpu.status = Flag::negative();
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x00);
+    assert_eq!(cpu.status, Flag::negative());
+    assert_eq!(cpu.program_counter, 0x8003);
   }
 }
