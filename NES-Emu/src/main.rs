@@ -177,6 +177,22 @@ impl CPU {
       self.program_counter += 1;
 
       match opscode {
+        /*--- CLI ---*/
+        0x58 => {
+          self.cli(&AddressingMode::Implied);
+        }
+        /*--- SEI ---*/
+        0x78 => {
+          self.sei(&AddressingMode::Implied);
+        }
+        /*--- CLD ---*/
+        0xd8 => {
+          self.cld(&AddressingMode::Implied);
+        }
+        /*--- SED ---*/
+        0xf8 => {
+          self.sed(&AddressingMode::Implied);
+        }
         /*--- ADC ---*/
         0x69 => {
           self.adc(&AddressingMode::Immediate);
@@ -204,6 +220,10 @@ impl CPU {
         0xb0 => {
           self.bcs(&AddressingMode::Relative);
           self.program_counter += 1;
+        }
+        /*--- BEC ---*/
+        0x38 => {
+          self.sec(&AddressingMode::Implied);
         }
         /*--- BEQ ---*/
         0xF0 => {
@@ -243,6 +263,10 @@ impl CPU {
         0x70 => {
           self.bvs(&AddressingMode::Relative);
           self.program_counter += 1;
+        }
+        /*--- CLC ---*/
+        0x18 => {
+          self.clc(&AddressingMode::Implied);
         }
         /*--- EOR ---*/
         0x49 => {
@@ -453,6 +477,16 @@ impl CPU {
     }
   }
 
+  // キャリーフラグをセット
+  fn sec(&mut self, mode: &AddressingMode) {
+    self.status |= Flag::carry();
+  }
+
+  // デシマルモードをセット
+  fn sed(&mut self, mode: &AddressingMode) {
+    self.status |= Flag::decimal();
+  }
+
   // ゼロフラグが立っていたら分岐
   fn beq(&mut self, mode: &AddressingMode) {
     if self.status & Flag::zero() != 0 {
@@ -522,6 +556,26 @@ impl CPU {
       let addr = self.get_operand_address(mode);
       self.program_counter = addr;
     }
+  }
+
+  // キャリーをクリア
+  fn clc(&mut self, mode: &AddressingMode) {
+    self.status &= !Flag::carry();
+  }
+
+  // デシマルモードをクリア
+  fn cld(&mut self, mode: &AddressingMode) {
+    self.status &= !Flag::decimal();
+  }
+
+  // インタラプトをクリア
+  fn cli(&mut self, mode: &AddressingMode) {
+    self.status &= !Flag::interrupt_disable();
+  }
+
+  // デシマルモードをクリア
+  fn sei(&mut self, mode: &AddressingMode) {
+    self.status |= Flag::interrupt_disable();
   }
 
   // レジスタaの値とメモリの値の排他的論理和をレジスタaに書き込む
@@ -1593,5 +1647,65 @@ mod test {
     assert_eq!(cpu.register_x, 0x01);
     assert_eq!(cpu.status, Flag::overflow());
     assert_eq!(cpu.program_counter, 0x8006);
+  }
+  #[test]
+  fn test_clc() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x18, 0x00]);
+    cpu.reset();
+    cpu.status = Flag::overflow() | Flag::carry();
+
+    cpu.run();
+    assert_eq!(cpu.status, Flag::overflow());
+  }
+  #[test]
+  fn test_sec() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x38, 0x00]);
+    cpu.reset();
+    cpu.status = Flag::overflow();
+
+    cpu.run();
+    assert_eq!(cpu.status, Flag::overflow() | Flag::carry());
+  }
+  #[test]
+  fn test_cld() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xd8, 0x00]);
+    cpu.reset();
+    cpu.status = Flag::overflow() | Flag::decimal();
+
+    cpu.run();
+    assert_eq!(cpu.status, Flag::overflow());
+  }
+  #[test]
+  fn test_sed() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xf8, 0x00]);
+    cpu.reset();
+    cpu.status = Flag::overflow();
+
+    cpu.run();
+    assert_eq!(cpu.status, Flag::overflow() | Flag::decimal());
+  }
+  #[test]
+  fn test_cli() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x58, 0x00]);
+    cpu.reset();
+    cpu.status = Flag::overflow() | Flag::interrupt_disable();
+
+    cpu.run();
+    assert_eq!(cpu.status, Flag::overflow());
+  }
+  #[test]
+  fn test_sei() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x78, 0x00]);
+    cpu.reset();
+    cpu.status = Flag::overflow();
+
+    cpu.run();
+    assert_eq!(cpu.status, Flag::overflow() | Flag::interrupt_disable());
   }
 }
