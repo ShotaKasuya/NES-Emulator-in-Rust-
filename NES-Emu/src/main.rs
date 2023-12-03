@@ -1,3 +1,5 @@
+use std::collections::btree_map::Values;
+
 fn main() {
   println!("Hello, world!");
 }
@@ -177,6 +179,69 @@ impl CPU {
       self.program_counter += 1;
 
       match opscode {
+        /*--- CMP ---*/
+        0xC9 => {
+          self.cmp(&AddressingMode::Immediate);
+          self.program_counter += 1;
+        }
+        0xC5 => {
+          self.cmp(&AddressingMode::ZeroPage);
+          self.program_counter += 1;
+        }
+        0xD5 => {
+          self.cmp(&AddressingMode::ZeroPage_X);
+          self.program_counter += 1;
+        }
+        0xCD => {
+          self.cmp(&AddressingMode::Absolute);
+          self.program_counter += 2;
+        }
+        0xDD => {
+          self.cmp(&AddressingMode::Absolute_X);
+          self.program_counter += 2;
+        }
+        0xD9 => {
+          self.cmp(&AddressingMode::Absolute_Y);
+          self.program_counter += 2;
+        }
+        0xC1 => {
+          self.cmp(&AddressingMode::Indirect_X);
+          self.program_counter += 1;
+        }
+        0xD1 => {
+          self.cmp(&AddressingMode::Indirect_Y);
+          self.program_counter += 1;
+        }
+        /*--- CPX ---*/
+        0xE0 => {
+          self.cpx(&AddressingMode::Immediate);
+          self.program_counter += 1;
+        }
+        0xE4 => {
+          self.cpx(&AddressingMode::ZeroPage);
+          self.program_counter += 1;
+        }
+        0xEC => {
+          self.cpx(&AddressingMode::Absolute);
+          self.program_counter += 2;
+        }
+        /*--- CPY ---*/
+        0xC0 => {
+          self.cpy(&AddressingMode::Immediate);
+          self.program_counter += 1;
+        }
+        0xC4 => {
+          self.cpy(&AddressingMode::ZeroPage);
+          self.program_counter += 1;
+        }
+        0xCC => {
+          self.cpy(&AddressingMode::Absolute);
+          self.program_counter += 2;
+        }
+        /*--- CLV ---*/
+        0xB8 => {
+          self.clv(&AddressingMode::Implied);
+        }
         /*--- CLI ---*/
         0x58 => {
           self.cli(&AddressingMode::Implied);
@@ -533,6 +598,38 @@ impl CPU {
       let addr = self.get_operand_address(mode);
       self.program_counter = addr;
     }
+  }
+
+  // オーバーフローフラグのクリア
+  fn clv(&mut self, mode: &AddressingMode) {
+    self.status &= !Flag::overflow();
+  }
+
+  fn cmp(&mut self, mode: &AddressingMode) {
+    self._cmp(self.register_a, mode);
+  }
+
+  fn cpx(&mut self, mode: &AddressingMode) {
+    self._cmp(self.register_x, mode);
+  }
+
+  // compare register y
+  fn cpy(&mut self, mode: &AddressingMode) {
+    self._cmp(self.register_y, mode);
+  }
+
+  fn _cmp(&mut self, target: u8, mode: &AddressingMode) {
+    let addr = self.get_operand_address(mode);
+    let value = self.mem_read(addr);
+
+    if target >= value {
+      self.sec(&AddressingMode::Implied);
+    } else {
+      self.clc(&AddressingMode::Implied);
+    }
+
+    let (value, _) = target.overflowing_sub(value);
+    self.update_zero_and_negative_flags(value);
   }
 
   // break
@@ -1707,5 +1804,68 @@ mod test {
 
     cpu.run();
     assert_eq!(cpu.status, Flag::overflow() | Flag::interrupt_disable());
+  }
+
+  #[test]
+  fn test_clv() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xB8, 0x00]);
+    cpu.reset();
+
+    cpu.status = Flag::overflow();
+
+    cpu.run();
+    assert_eq!(cpu.status, 0);
+  }
+
+  #[test]
+  fn test_cmp() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xC9, 0x01, 0x00]);
+    cpu.reset();
+    cpu.register_a = 0x02;
+
+    cpu.run();
+    assert_eq!(cpu.status, Flag::carry());
+  }
+  #[test]
+  fn test_cmp_eq() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xC9, 0x02, 0x00]);
+    cpu.reset();
+    cpu.register_a = 0x02;
+
+    cpu.run();
+    assert_eq!(cpu.status, Flag::carry() | Flag::zero());
+  }
+  #[test]
+  fn test_cmp_negative() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xC9, 0x03, 0x00]);
+    cpu.reset();
+    cpu.register_a = 0x02;
+
+    cpu.run();
+    assert_eq!(cpu.status, Flag::negative());
+  }
+  #[test]
+  fn test_cpx() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xE0, 0x01, 0x00]);
+    cpu.reset();
+    cpu.register_x = 0x02;
+
+    cpu.run();
+    assert_eq!(cpu.status, Flag::carry());
+  }
+  #[test]
+  fn test_cpy() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xC0, 0x01, 0x00]);
+    cpu.reset();
+    cpu.register_y = 0x02;
+
+    cpu.run();
+    assert_eq!(cpu.status, Flag::carry());
   }
 }
