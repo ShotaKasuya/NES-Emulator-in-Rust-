@@ -1,5 +1,3 @@
-use std::collections::btree_map::Values;
-
 fn main() {
   println!("Hello, world!");
 }
@@ -15,6 +13,7 @@ pub enum AddressingMode {
   Absolute,
   Absolute_X,
   Absolute_Y,
+  Indirect,
   Indirect_X,
   Indirect_Y,
   Relative,
@@ -127,6 +126,10 @@ impl CPU {
         let addr = base.wrapping_add(self.register_y as u16);
         addr
       }
+      AddressingMode::Indirect => {
+        let base = self.mem_read_u16(self.program_counter);
+        self.mem_read_u16(base as u16)
+      }
       AddressingMode::Indirect_X => {
         let base = self.mem_read(self.program_counter);
 
@@ -179,6 +182,14 @@ impl CPU {
       self.program_counter += 1;
 
       match opscode {
+        /*--- JMP ---*/
+        0x4C => {
+          self.jmp(&AddressingMode::Absolute);
+          // ここでインクリメントしない
+        }
+        0x6C => {
+          self.jmp(&AddressingMode::Indirect);
+        }
         /*--- INC ---*/
         0xE6 => {
           self.inc(&AddressingMode::ZeroPage);
@@ -756,6 +767,19 @@ impl CPU {
 
     self.register_y = value;
     self.update_zero_and_negative_flags(value);
+  }
+
+  fn jmp(&mut self, mode: &AddressingMode) {
+    let addr = self.get_operand_address(mode);
+    self.program_counter = addr;
+    // この後プログラムカウンターはインクリメントしない。
+    // 元の6502はターゲットアドレスを正しくフェッチしていません
+    // 間接ベクトルがページ境界に該当する場合
+    // (例:$ xxFFここで xxは、$ 00から$ FFまでの値です。
+    // この場合、LSBを取得します 予想通り$ xxFFからですが、
+    // MSBは$ xx00から取得します。これは修正されました
+    // 65SC02のような後のいくつかのチップでは、互換性のために常に
+    // 間接ベクトルがページの最後にないことを確認します。
   }
 
   // レジスタaに値をコピーする
@@ -2055,5 +2079,35 @@ mod test {
     cpu.run();
     assert_eq!(cpu.register_y, 0x80);
     assert_eq!(cpu.status, Flag::negative());
+  }
+
+  #[test]
+  fn test_jmp() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x4C, 0x30, 0x40, 0x00]);
+    cpu.reset();
+    cpu.mem_write(0x4030, 0xE8);
+    cpu.mem_write(0x4031, 0x00);
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x01);
+    assert_eq!(cpu.status, 0);
+    assert_eq!(cpu.program_counter, 0x4032);
+  }
+  #[test]
+  fn test_jmp_indirect() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x6C, 0x30, 0x40, 0x00]);
+    cpu.reset();
+    cpu.mem_write(0x4030, 0x80);
+    cpu.mem_write(0x4031, 0x00);
+    println!("{:?}", cpu.program_counter);
+    cpu.mem_write(0x8000, 0xE8);
+    cpu.mem_write(0x8001, 0x00);
+
+    cpu.run();
+    assert_eq!(cpu.program_counter, 0x8002);
+    assert_eq!(cpu.register_x, 0x01);
+    assert_eq!(cpu.status, 0);
   }
 }
