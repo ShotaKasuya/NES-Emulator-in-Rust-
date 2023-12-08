@@ -1,0 +1,151 @@
+ADC,Immediate,0x69,2,2
+ADC,Zero Page,0x65,2,3
+ADC,"Zero Page,X",0x75,2,4
+ADC,Absolute,0x6D,3,4
+ADC,"Absolute,X",0x7D,3,4 /* (+1 if page crossed) */
+ADC,"Absolute,Y",0x79,3,4 /* (+1 if page crossed) */
+ADC,"(Indirect,X)",0x61,2,6
+ADC,"(Indirect),Y",0x71,2,5 /* (+1 if page crossed) */
+AND,Immediate,0x29,2,2
+AND,Zero  Page,0x25,2,3
+AND,"Zero  Page,X",0x35,2,4
+AND,Absolute,0x2D,3,4
+AND,"Absolute,X",0x3D,3,4 /* (+1 if page crossed) */
+AND,"Absolute,Y",0x39,3,4 /* (+1 if page crossed) */
+AND,"(Indirect,X)",0x21,2,6
+AND,"(Indirect),Y",0x31,2,5 /* (+1 if page crossed) */
+ASL,Accumulator,0x0A,1,2
+ASL,Zero  Page,0x06,2,5
+ASL,"Zero  Page,X",0x16,2,6
+ASL,Absolute,0x0E,3,6
+ASL,"Absolute,X",0x1E,3,7
+BCC,Relative,0x90,2,0x1 \(0x2\)
+BCS,Relative,0xB0,2,\d \(.+\)
+BEQ,Relative,0xF0,2,2 /* (+1 if branch succeeds  +2 if to a new page) */
+BIT,Zero  Page,0x24,2,3
+BIT,Absolute,0x2C,3,4
+BMI,Relative,0x30,2,2 /* (+1 if branch succeeds  +2 if to a new page) */
+BNE,Relative,0xD0,2,2 /* (+1 if branch succeeds  +2 if to a new page) */
+BPL,Relative,0x10,2,2 /* (+1 if branch succeeds  +2 if to a new page) */
+BRK,Implied,0x00,1,7
+BVC,Relative,0x50,2,2 /* (+1 if branch succeeds  +2 if to a new page) */
+BVS,Relative,0x70,2,2 /* (+1 if branch succeeds  +2 if to a new page) */
+CLC,Implied,0x18,1,2
+CLD,Implied,0xD8,1,2
+CLI,Implied,0x58,1,2
+CLV,Implied,0xB8,1,2
+CMP,Immediate,0xC9,2,2
+CMP,Zero Page,0xC5,2,3
+CMP,"Zero Page,X",0xD5,2,4
+CMP,Absolute,0xCD,3,4
+CMP,"Absolute,X",0xDD,3,4 /* (+1 if page crossed) */
+CMP,"Absolute,Y",0xD9,3,4 /* (+1 if page crossed) */
+CMP,"(Indirect,X)",0xC1,2,6
+CMP,"(Indirect),Y",0xD1,2,5 /* (+1 if page crossed) */
+CPX,Immediate,0xE0,2,2
+CPX,Zero Page,0xE4,2,3
+CPX,Absolute,0xEC,3,4
+CPY,Immediate,0xC0,2,2
+CPY,Zero Page,0xC4,2,3
+CPY,Absolute,0xCC,3,4
+DEC,Zero Page,0xC6,2,5
+DEC,"Zero Page,X",0xD6,2,6
+DEC,Absolute,0xCE,3,6
+DEC,"Absolute,X",0xDE,3,7
+DEX,Implied,0xCA,1,2
+DEY,Implied,0x88,1,2
+EOR,Immediate,0x49,2,2
+EOR,Zero  Page,0x45,2,3
+EOR,"Zero  Page,X",0x55,2,4
+EOR,Absolute,0x4D,3,4
+EOR,"Absolute,X",0x5D,3,4 /* (+1 if page crossed) */
+EOR,"Absolute,Y",0x59,3,4 /* (+1 if page crossed) */
+EOR,"(Indirect,X)",0x41,2,6
+EOR,"(Indirect),Y",0x51,2,5 /* (+1 if page crossed) */
+INC,Zero Page,0xE6,2,5
+INC,"Zero Page,X",0xF6,2,6
+INC,Absolute,0xEE,3,6
+INC,"Absolute,X",0xFE,3,7
+INX,Implied,0xE8,1,2
+INY,Implied,0xC8,1,2
+JMP,Absolute,0x4C,3,3
+JMP,Indirect,0x6C,3,5
+JSR,Absolute,0x20,3,6
+LDA,Immediate,0xA9,2,2
+LDA,Zero Page,0xA5,2,3
+LDA,"Zero Page,X",0xB5,2,4
+LDA,Absolute,0xAD,3,4
+LDA,"Absolute,X",0xBD,3,4 /* (+1 if page crossed) */
+LDA,"Absolute,Y",0xB9,3,4 /* (+1 if page crossed) */
+LDA,"(Indirect,X)",0xA1,2,6
+LDA,"(Indirect),Y",0xB1,2,5 /* (+1 if page crossed) */
+LDX,Immediate,0xA2,2,2
+LDX,Zero Page,0xA6,2,3
+LDX,"Zero Page,Y",0xB6,2,4
+LDX,Absolute,0xAE,3,4
+LDX,"Absolute,Y",0xBE,3,4 /* (+1 if page crossed) */
+LDY,Immediate,0xA0,2,2
+LDY,Zero Page,0xA4,2,3
+LDY,"Zero Page,X",0xB4,2,4
+LDY,Absolute,0xAC,3,4
+LDY,"Absolute,X",0xBC,3,4 /* (+1 if page crossed) */
+LSR,Accumulator,0x4A,1,2
+LSR,Zero  Page,0x46,2,5
+LSR,"Zero  Page,X",0x56,2,6
+LSR,Absolute,0x4E,3,6
+LSR,"Absolute,X",0x5E,3,7
+NOP,Implied,0xEA,1,2
+ORA,Immediate,0x09,2,2
+ORA,Zero Page,0x05,2,3
+ORA,"Zero Page,X",0x15,2,4
+ORA,Absolute,0x0D,3,4
+ORA,"Absolute,X",0x1D,3,4 /* (+1 if page crossed) */
+ORA,"Absolute,Y",0x19,3,4 /* (+1 if page crossed) */
+ORA,"(Indirect,X)",0x01,2,6
+ORA,"(Indirect),Y",0x11,2,5 /* (+1 if page crossed) */
+PHA,Implied,0x48,1,3
+PHP,Implied,0x08,1,3
+PLA,Implied,0x68,1,4
+PLP,Implied,0x28,1,4
+ROL,Accumulator,0x2A,1,2
+ROL,Zero  Page,0x26,2,5
+ROL,"Zero  Page,X",0x36,2,6
+ROL,Absolute,0x2E,3,6
+ROL,"Absolute,X",0x3E,3,7
+ROR,Accumulator,0x6A,1,2
+ROR,Zero  Page,0x66,2,5
+ROR,"Zero  Page,X",0x76,2,6
+ROR,Absolute,0x6E,3,6
+ROR,"Absolute,X",0x7E,3,7
+RTI,Implied,0x40,1,6
+RTS,Implied,0x60,1,6
+SBC,Immediate,0xE9,2,2
+SBC,Zero Page,0xE5,2,3
+SBC,"Zero Page,X",0xF5,2,4
+SBC,Absolute,0xED,3,4
+SBC,"Absolute,X",0xFD,3,4 /* (+1 if page crossed) */
+SBC,"Absolute,Y",0xF9,3,4 /* (+1 if page crossed) */
+SBC,"(Indirect,X)",0xE1,2,6
+SBC,"(Indirect),Y",0xF1,2,5 /* (+1 if page crossed) */
+SEC,Implied,0x38,1,2
+SED,Implied,0xF8,1,2
+SEI,Implied,0x78,1,2
+STA,Zero Page,0x85,2,3
+STA,"Zero Page,X",0x95,2,4
+STA,Absolute,0x8D,3,4
+STA,"Absolute,X",0x9D,3,5
+STA,"Absolute,Y",0x99,3,5
+STA,"(Indirect,X)",0x81,2,6
+STA,"(Indirect),Y",0x91,2,6
+STX,Zero Page,0x86,2,3
+STX,"Zero Page,Y",0x96,2,4
+STX,Absolute,0x8E,3,4
+STY,Zero Page,0x84,2,3
+STY,"Zero Page,X",0x94,2,4
+STY,Absolute,0x8C,3,4
+TAX,Implied,0xAA,1,2
+TAY,Implied,0xA8,1,2
+TSX,Implied,0xBA,1,2
+TXA,Implied,0x8A,1,2
+TXS,Implied,0x9A,1,2
+TYA,Implied,0x98,1,2
