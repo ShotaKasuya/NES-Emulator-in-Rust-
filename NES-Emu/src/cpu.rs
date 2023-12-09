@@ -81,6 +81,7 @@ pub struct CPU {
   pub register_x: u8,
   pub register_y: u8,
   pub status: u8,
+  pub stack_pointer: u8,
   pub program_counter: u16,
   memory: [u8; 0x10000],
 }
@@ -92,6 +93,7 @@ impl CPU {
       register_x: 0,
       register_y: 0,
       status: 0,
+      stack_pointer: 0xFF,
       program_counter: 0,
       memory: [0x00; 0x10000],
     }
@@ -196,6 +198,7 @@ impl CPU {
     self.register_x = 0;
     self.register_y = 0;
     self.status = 0;
+    self.stack_pointer = 0xFF;
     self.program_counter = self.mem_read_u16(0xFFFC);
   }
 
@@ -237,7 +240,39 @@ impl CPU {
   pub fn ldx(&mut self, mode: &AddressingMode) {}
   // pub fn lda(&mut self, mode: &AddressingMode) {}
   pub fn rts(&mut self, mode: &AddressingMode) {}
-  pub fn jsr(&mut self, mode: &AddressingMode) {}
+  pub fn jsr(&mut self, mode: &AddressingMode) {
+    let addr = self.get_operand_address(mode);
+    self._push_u16(self.program_counter + 2);
+    self.program_counter = addr;
+    // 後で+2されるので整合性のため-2する
+    self.program_counter -= 2;
+  }
+
+  pub fn _push(&mut self, value: u8) {
+    let addr = 0x0100 + self.stack_pointer as u16;
+    self.mem_write(addr, value);
+    self.stack_pointer = self.stack_pointer.wrapping_sub(1);
+  }
+
+  pub fn _pop(&mut self) -> u8 {
+    self.stack_pointer = self.stack_pointer.wrapping_add(1);
+    let addr = 0x0100 + self.stack_pointer as u16;
+    self.mem_read(addr)
+  }
+
+  pub fn _push_u16(&mut self, value: u16) {
+    let addr = 0x0100 + self.stack_pointer.wrapping_sub(1) as u16;
+    self.mem_write_u16(addr, value);
+    self.stack_pointer = self.stack_pointer.wrapping_sub(1);
+  }
+
+  pub fn _pop_u16(&mut self) -> u16 {
+    let addr = 0x0100 + self.stack_pointer.wrapping_add(1) as u16;
+    let value = self.mem_read_u16(addr);
+    self.stack_pointer = self.stack_pointer.wrapping_add(2);
+    value
+  }
+
   // レジスタaの値とメモリの値の和をレジスタaに書き込む
   // like SBC
   pub fn adc(&mut self, mode: &AddressingMode) {
@@ -1853,5 +1888,19 @@ mod test {
     assert_eq!(cpu.program_counter, 0x8002);
     assert_eq!(cpu.register_x, 0x01);
     assert_eq!(cpu.status, 0);
+  }
+  #[test]
+  fn test_jsr() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x20, 0x30, 0x40, 0x00]);
+    cpu.reset();
+    cpu.mem_write(0x4030, 0xE8);
+    cpu.mem_write(0x4031, 0x00);
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x01);
+    assert_eq!(cpu.status, 0);
+    assert_eq!(cpu.program_counter, 0x4032);
+    assert_eq!(cpu.mem_read_u16(0x01FE), 0x8003);
   }
 }
