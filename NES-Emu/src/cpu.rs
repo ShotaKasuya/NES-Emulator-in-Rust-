@@ -236,10 +236,35 @@ impl CPU {
   pub fn pla(&mut self, mode: &AddressingMode) {}
   pub fn pha(&mut self, mode: &AddressingMode) {}
   pub fn nop(&mut self, mode: &AddressingMode) {}
-  pub fn ldy(&mut self, mode: &AddressingMode) {}
-  pub fn ldx(&mut self, mode: &AddressingMode) {}
-  // pub fn lda(&mut self, mode: &AddressingMode) {}
-  pub fn rts(&mut self, mode: &AddressingMode) {}
+  pub fn ldy(&mut self, mode: &AddressingMode) {
+    let addr = self.get_operand_address(mode);
+    let value = self.mem_read(addr);
+
+    self.register_y = value;
+    self.update_zero_and_negative_flags(value);
+  }
+  pub fn ldx(&mut self, mode: &AddressingMode) {
+    let addr = self.get_operand_address(mode);
+    let value = self.mem_read(addr);
+
+    self.register_x = value;
+    self.update_zero_and_negative_flags(value);
+  }
+
+  // レジスタaに値をコピーする
+  pub fn lda(&mut self, mode: &AddressingMode) {
+    let addr = self.get_operand_address(mode);
+    let value = self.mem_read(addr);
+
+    self.register_a = value;
+    self.update_zero_and_negative_flags(value);
+  }
+
+  pub fn rts(&mut self, mode: &AddressingMode) {
+    let value = self._pop_u16();
+    self.program_counter = value;
+  }
+
   pub fn jsr(&mut self, mode: &AddressingMode) {
     let addr = self.get_operand_address(mode);
     self._push_u16(self.program_counter + 2);
@@ -263,7 +288,7 @@ impl CPU {
   pub fn _push_u16(&mut self, value: u16) {
     let addr = 0x0100 + self.stack_pointer.wrapping_sub(1) as u16;
     self.mem_write_u16(addr, value);
-    self.stack_pointer = self.stack_pointer.wrapping_sub(1);
+    self.stack_pointer = self.stack_pointer.wrapping_sub(2);
   }
 
   pub fn _pop_u16(&mut self) -> u16 {
@@ -559,15 +584,6 @@ impl CPU {
     // MSBは$ xx00から取得します。これは修正されました
     // 65SC02のような後のいくつかのチップでは、互換性のために常に
     // 間接ベクトルがページの最後にないことを確認します。
-  }
-
-  // レジスタaに値をコピーする
-  pub fn lda(&mut self, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
-    let value = self.mem_read(addr);
-
-    self.register_a = value;
-    self.update_zero_and_negative_flags(self.register_a);
   }
 
   // 算術右シフト
@@ -1902,5 +1918,57 @@ mod test {
     assert_eq!(cpu.status, 0);
     assert_eq!(cpu.program_counter, 0x4032);
     assert_eq!(cpu.mem_read_u16(0x01FE), 0x8003);
+  }
+
+  #[test]
+  fn test_rts() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x60, 0x00]);
+    cpu.reset();
+    cpu.mem_write(0x01FF, 0x05);
+    cpu.mem_write(0x01FE, 0x06);
+
+    cpu.mem_write(0x0506, 0xe8);
+    cpu.mem_write(0x0507, 0x00);
+    cpu.stack_pointer = 0xFD;
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x01);
+    assert_eq!(cpu.status, 0);
+    assert_eq!(cpu.stack_pointer, 0xFF);
+    assert_eq!(cpu.program_counter, 0x0508);
+  }
+  #[test]
+  fn test_jsr_rts() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x20, 0x30, 0x40, 0x00]);
+    cpu.reset();
+    cpu.mem_write(0x4030, 0xe8);
+    cpu.mem_write(0x4031, 0x60); // RTS
+    cpu.mem_write(0x4032, 0x00);
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x01);
+    assert_eq!(cpu.status, 0);
+    assert_eq!(cpu.stack_pointer, 0xFF);
+    assert_eq!(cpu.program_counter, 0x8004);
+  }
+  #[test]
+  fn test_ldx() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xa2, 0x05, 0x00]);
+    cpu.reset();
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x05);
+  }
+  #[test]
+  fn test_ldy() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xa0, 0x05, 0x00]);
+    cpu.reset();
+
+    cpu.run();
+    assert_eq!(cpu.register_y, 0x05);
   }
 }
