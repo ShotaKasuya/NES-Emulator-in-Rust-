@@ -188,12 +188,12 @@ impl CPU {
     self.run()
   }
 
-  fn load(&mut self, program: Vec<u8>) {
+  pub fn load(&mut self, program: Vec<u8>) {
     self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
     self.mem_write_u16(0xFFFC, 0x8000);
   }
 
-  fn reset(&mut self) {
+  pub fn reset(&mut self) {
     self.register_a = 0;
     self.register_x = 0;
     self.register_y = 0;
@@ -202,7 +202,14 @@ impl CPU {
     self.program_counter = self.mem_read_u16(0xFFFC);
   }
 
-  fn run(&mut self) {
+  pub fn run(&mut self) {
+    self.run_with_callback(|_| {});
+  }
+
+  pub fn run_with_callback<F>(&mut self, mut callback: F)
+  where
+    F: FnMut(&mut CPU),
+  {
     loop {
       let opscode = self.mem_read(self.program_counter);
       self.program_counter += 1;
@@ -215,6 +222,7 @@ impl CPU {
           if op.name == "BRK" {
             return;
           }
+          callback(self);
           call(self, &op);
           break;
         }
@@ -526,7 +534,7 @@ impl CPU {
   pub fn brk(&mut self, mode: &AddressingMode) {
     // TODO!
     self._push_u16(self.program_counter);
-    self._push(self.stack_pointer);
+    self._push(self.status);
 
     self.program_counter = self.mem_read_u16(0xFFFE);
     self.status |= Flag::Break as u8;
