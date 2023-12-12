@@ -221,17 +221,32 @@ impl CPU {
       }
     }
   }
-  pub fn txs(&mut self, mode: &AddressingMode) {}
-  pub fn tsx(&mut self, mode: &AddressingMode) {}
-  pub fn tya(&mut self, mode: &AddressingMode) {}
+  pub fn txs(&mut self, mode: &AddressingMode) {
+    self.stack_pointer = self.register_x;
+  }
+
+  pub fn tsx(&mut self, mode: &AddressingMode) {
+    self.register_x = self.stack_pointer;
+    self.update_zero_and_negative_flags(self.register_x);
+  }
+  pub fn tya(&mut self, mode: &AddressingMode) {
+    self.register_a = self.register_y;
+    self.update_zero_and_negative_flags(self.register_y);
+  }
 
   // レジスタaの内容をレジスタxにコピーする
   pub fn tax(&mut self, mode: &AddressingMode) {
     self.register_x = self.register_a;
     self.update_zero_and_negative_flags(self.register_x);
   }
-  pub fn tay(&mut self, mode: &AddressingMode) {}
-  pub fn txa(&mut self, mode: &AddressingMode) {}
+  pub fn tay(&mut self, mode: &AddressingMode) {
+    self.register_y = self.register_a;
+    self.update_zero_and_negative_flags(self.register_y);
+  }
+  pub fn txa(&mut self, mode: &AddressingMode) {
+    self.register_a = self.register_x;
+    self.update_zero_and_negative_flags(self.register_x);
+  }
 
   pub fn sty(&mut self, mode: &AddressingMode) {
     let addr = self.get_operand_address(mode);
@@ -248,7 +263,8 @@ impl CPU {
   }
 
   pub fn rti(&mut self, mode: &AddressingMode) {
-    todo!("BRKが出来ていないので保留")
+    self.status = self._pop();
+    self.program_counter = self._pop_u16();
   }
 
   pub fn plp(&mut self, mode: &AddressingMode) {
@@ -508,8 +524,11 @@ impl CPU {
 
   // break
   pub fn brk(&mut self, mode: &AddressingMode) {
-    self.program_counter = self.mem_read_u16(0xFFFE);
     // TODO!
+    self._push_u16(self.program_counter);
+    self._push(self.stack_pointer);
+
+    self.program_counter = self.mem_read_u16(0xFFFE);
     self.status |= Flag::Break as u8;
   }
 
@@ -2119,5 +2138,66 @@ mod test {
     cpu.register_y = 0xBA;
     cpu.run();
     assert_eq!(cpu.mem_read(0x10), 0xBA);
+  }
+  #[test]
+  fn test_txa() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x8a, 0x00]);
+    cpu.reset();
+
+    cpu.register_x = 0x10;
+    cpu.run();
+    assert_eq!(cpu.register_a, 0x10);
+  }
+  #[test]
+  fn test_tay() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xa8, 0x00]);
+    cpu.reset();
+
+    cpu.register_a = 0x10;
+    cpu.run();
+    assert_eq!(cpu.register_y, 0x10);
+  }
+  #[test]
+  fn test_tya() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x98, 0x00]);
+    cpu.reset();
+
+    cpu.register_y = 0x10;
+    cpu.run();
+    assert_eq!(cpu.register_a, 0x10);
+  }
+  #[test]
+  fn test_tsx() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xba, 0x00]);
+    cpu.reset();
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0xFF);
+    assert_eq!(cpu.status, Flag::negative());
+  }
+  #[test]
+  fn test_tsx_no_flag() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xba, 0x00]);
+    cpu.reset();
+    cpu.stack_pointer = 0x75;
+
+    cpu.run();
+    assert_eq!(cpu.register_x, 0x75);
+    assert_eq!(cpu.status, 0);
+  }
+  #[test]
+  fn test_txs() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x9a, 0x00]);
+    cpu.reset();
+    cpu.register_x = 0x80;
+
+    cpu.run();
+    assert_eq!(cpu.stack_pointer, 0x80);
   }
 }
