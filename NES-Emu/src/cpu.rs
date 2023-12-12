@@ -233,9 +233,19 @@ impl CPU {
   pub fn rti(&mut self, mode: &AddressingMode) {}
   pub fn plp(&mut self, mode: &AddressingMode) {}
   pub fn php(&mut self, mode: &AddressingMode) {}
-  pub fn pla(&mut self, mode: &AddressingMode) {}
-  pub fn pha(&mut self, mode: &AddressingMode) {}
-  pub fn nop(&mut self, mode: &AddressingMode) {}
+  pub fn pla(&mut self, mode: &AddressingMode) {
+    self.register_a = self._pop();
+    self.update_zero_and_negative_flags(self.register_a);
+  }
+
+  pub fn pha(&mut self, mode: &AddressingMode) {
+    self._push(self.register_a);
+  }
+
+  pub fn nop(&mut self, mode: &AddressingMode) {
+    // 何もしない
+  }
+
   pub fn ldy(&mut self, mode: &AddressingMode) {
     let addr = self.get_operand_address(mode);
     let value = self.mem_read(addr);
@@ -1970,5 +1980,72 @@ mod test {
 
     cpu.run();
     assert_eq!(cpu.register_y, 0x05);
+  }
+
+  #[test]
+  fn test_nop() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0xea, 0x00]);
+    cpu.reset();
+
+    cpu.run();
+    assert_eq!(cpu.program_counter, 0x8002);
+  }
+
+  #[test]
+  fn test_pha() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x48, 0x00]);
+    cpu.reset();
+    cpu.register_a = 0x07;
+
+    cpu.run();
+    assert_eq!(cpu.program_counter, 0x8002);
+    assert_eq!(cpu.register_a, 0x07);
+    assert_eq!(cpu.stack_pointer, 0xFE);
+    assert_eq!(cpu.mem_read(0x01FF), 0x07);
+  }
+
+  #[test]
+  fn test_pla() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x68, 0x00]);
+    cpu.reset();
+    cpu.mem_write(0x01FF, 0x07);
+    cpu.stack_pointer = 0xFE;
+
+    cpu.run();
+    assert_eq!(cpu.program_counter, 0x8002);
+    assert_eq!(cpu.register_a, 0x07);
+    assert_eq!(cpu.stack_pointer, 0xFF);
+    assert_eq!(cpu.status, 0x00);
+  }
+  #[test]
+  fn test_pla_flag_zero() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x68, 0x00]);
+    cpu.reset();
+    cpu.mem_write(0x01FF, 0x00);
+    cpu.stack_pointer = 0xFE;
+
+    cpu.run();
+    assert_eq!(cpu.program_counter, 0x8002);
+    assert_eq!(cpu.register_a, 0x00);
+    assert_eq!(cpu.stack_pointer, 0xFF);
+    assert_eq!(cpu.status, Flag::zero());
+  }
+
+  #[test]
+  fn test_pla_and_pha() {
+    let mut cpu = CPU::new();
+    cpu.load(vec![0x48, 0xa9, 0x60, 0x68, 0x00]);
+    cpu.reset();
+    cpu.register_a = 0x80;
+
+    cpu.run();
+    assert_eq!(cpu.program_counter, 0x8005);
+    assert_eq!(cpu.register_a, 0x80);
+    assert_eq!(cpu.stack_pointer, 0xFF);
+    assert_eq!(cpu.status, Flag::negative());
   }
 }
