@@ -99,8 +99,8 @@ impl CPU {
     }
   }
 
-  fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
-    match mode {
+  fn get_operand_address(&self, _mode: &AddressingMode) -> u16 {
+    match _mode {
       AddressingMode::Implied => {
         panic!("Don't Ask Here Address of Implied");
       }
@@ -156,26 +156,26 @@ impl CPU {
         addr as u16
       }
       AddressingMode::NoneAddressing => {
-        panic!("mode {:?} is not supported", mode);
+        panic!("_mode {:?} is not supported", _mode);
       }
     }
   }
 
-  fn mem_read(&self, addr: u16) -> u8 {
+  pub fn mem_read(&self, addr: u16) -> u8 {
     self.memory[addr as usize]
   }
 
-  fn mem_write(&mut self, addr: u16, data: u8) {
+  pub fn mem_write(&mut self, addr: u16, data: u8) {
     self.memory[addr as usize] = data;
   }
 
-  fn mem_read_u16(&self, pos: u16) -> u16 {
+  pub fn mem_read_u16(&self, pos: u16) -> u16 {
     let lo = self.mem_read(pos) as u16;
     let hi = self.mem_read(pos + 1) as u16;
     (hi << 8) | (lo as u16)
   }
 
-  fn mem_write_u16(&mut self, pos: u16, data: u16) {
+  pub fn mem_write_u16(&mut self, pos: u16, data: u16) {
     let hi = (data >> 8) as u8;
     let lo = (data & 0xFF) as u8;
     self.mem_write(pos, lo);
@@ -229,82 +229,82 @@ impl CPU {
       }
     }
   }
-  pub fn txs(&mut self, mode: &AddressingMode) {
+  pub fn txs(&mut self, _mode: &AddressingMode) {
     self.stack_pointer = self.register_x;
   }
 
-  pub fn tsx(&mut self, mode: &AddressingMode) {
+  pub fn tsx(&mut self, _mode: &AddressingMode) {
     self.register_x = self.stack_pointer;
     self.update_zero_and_negative_flags(self.register_x);
   }
-  pub fn tya(&mut self, mode: &AddressingMode) {
+  pub fn tya(&mut self, _mode: &AddressingMode) {
     self.register_a = self.register_y;
     self.update_zero_and_negative_flags(self.register_y);
   }
 
   // レジスタaの内容をレジスタxにコピーする
-  pub fn tax(&mut self, mode: &AddressingMode) {
+  pub fn tax(&mut self, _mode: &AddressingMode) {
     self.register_x = self.register_a;
     self.update_zero_and_negative_flags(self.register_x);
   }
-  pub fn tay(&mut self, mode: &AddressingMode) {
+  pub fn tay(&mut self, _mode: &AddressingMode) {
     self.register_y = self.register_a;
     self.update_zero_and_negative_flags(self.register_y);
   }
-  pub fn txa(&mut self, mode: &AddressingMode) {
+  pub fn txa(&mut self, _mode: &AddressingMode) {
     self.register_a = self.register_x;
     self.update_zero_and_negative_flags(self.register_x);
   }
 
-  pub fn sty(&mut self, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
+  pub fn sty(&mut self, _mode: &AddressingMode) {
+    let addr = self.get_operand_address(_mode);
     self.mem_write(addr, self.register_y);
   }
-  pub fn stx(&mut self, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
+  pub fn stx(&mut self, _mode: &AddressingMode) {
+    let addr = self.get_operand_address(_mode);
     self.mem_write(addr, self.register_x);
   }
   // レジスタaの値をメモリに書き込む
-  pub fn sta(&mut self, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
+  pub fn sta(&mut self, _mode: &AddressingMode) {
+    let addr = self.get_operand_address(_mode);
     self.mem_write(addr, self.register_a);
   }
 
-  pub fn rti(&mut self, mode: &AddressingMode) {
+  pub fn rti(&mut self, _mode: &AddressingMode) {
     self.status = self._pop();
     self.program_counter = self._pop_u16();
   }
 
-  pub fn plp(&mut self, mode: &AddressingMode) {
+  pub fn plp(&mut self, _mode: &AddressingMode) {
     self.status = self._pop();
   }
 
-  pub fn php(&mut self, mode: &AddressingMode) {
+  pub fn php(&mut self, _mode: &AddressingMode) {
     self._push(self.status);
   }
 
-  pub fn pla(&mut self, mode: &AddressingMode) {
+  pub fn pla(&mut self, _mode: &AddressingMode) {
     self.register_a = self._pop();
     self.update_zero_and_negative_flags(self.register_a);
   }
 
-  pub fn pha(&mut self, mode: &AddressingMode) {
+  pub fn pha(&mut self, _mode: &AddressingMode) {
     self._push(self.register_a);
   }
 
-  pub fn nop(&mut self, mode: &AddressingMode) {
+  pub fn nop(&mut self, _mode: &AddressingMode) {
     // 何もしない
   }
 
-  pub fn ldy(&mut self, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
+  pub fn ldy(&mut self, _mode: &AddressingMode) {
+    let addr = self.get_operand_address(_mode);
     let value = self.mem_read(addr);
 
     self.register_y = value;
     self.update_zero_and_negative_flags(value);
   }
-  pub fn ldx(&mut self, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
+  pub fn ldx(&mut self, _mode: &AddressingMode) {
+    let addr = self.get_operand_address(_mode);
     let value = self.mem_read(addr);
 
     self.register_x = value;
@@ -312,21 +312,21 @@ impl CPU {
   }
 
   // レジスタaに値をコピーする
-  pub fn lda(&mut self, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
+  pub fn lda(&mut self, _mode: &AddressingMode) {
+    let addr = self.get_operand_address(_mode);
     let value = self.mem_read(addr);
 
     self.register_a = value;
     self.update_zero_and_negative_flags(value);
   }
 
-  pub fn rts(&mut self, mode: &AddressingMode) {
+  pub fn rts(&mut self, _mode: &AddressingMode) {
     let value = self._pop_u16();
     self.program_counter = value;
   }
 
-  pub fn jsr(&mut self, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
+  pub fn jsr(&mut self, _mode: &AddressingMode) {
+    let addr = self.get_operand_address(_mode);
     self._push_u16(self.program_counter + 2);
     self.program_counter = addr;
     // 後で+2されるので整合性のため-2する
@@ -360,8 +360,8 @@ impl CPU {
 
   // レジスタaの値とメモリの値の和をレジスタaに書き込む
   // like SBC
-  pub fn adc(&mut self, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
+  pub fn adc(&mut self, _mode: &AddressingMode) {
+    let addr = self.get_operand_address(_mode);
     let value = self.mem_read(addr);
 
     // n = register_a + value + carry
@@ -393,8 +393,8 @@ impl CPU {
 
   // レジスタaの値とメモリの値の論理積をレジスタaに書き込む
   // like EOR,ORA
-  pub fn and(&mut self, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
+  pub fn and(&mut self, _mode: &AddressingMode) {
+    let addr = self.get_operand_address(_mode);
     let value = self.mem_read(addr);
 
     self.register_a &= value;
@@ -403,13 +403,13 @@ impl CPU {
 
   // 算術左シフト
   // like LSR,ROL,ROR
-  pub fn asl(&mut self, mode: &AddressingMode) {
-    let (value, carry) = if mode == &AddressingMode::Accumulator {
+  pub fn asl(&mut self, _mode: &AddressingMode) {
+    let (value, carry) = if _mode == &AddressingMode::Accumulator {
       let (value, carry) = self.register_a.overflowing_mul(2);
       self.register_a = value;
       (value, carry)
     } else {
-      let addr = self.get_operand_address(mode);
+      let addr = self.get_operand_address(_mode);
       let value = self.mem_read(addr);
       let (value, carry) = value.overflowing_mul(2);
       self.mem_write(addr, value);
@@ -425,35 +425,35 @@ impl CPU {
   }
 
   // キャリーがクリアなら分岐
-  pub fn bcc(&mut self, mode: &AddressingMode) {
+  pub fn bcc(&mut self, _mode: &AddressingMode) {
     if self.status & Flag::carry() == 0 {
-      let addr = self.get_operand_address(mode);
+      let addr = self.get_operand_address(_mode);
       self.program_counter = addr
     }
   }
 
   // キャリーが立っていたら分岐
-  pub fn bcs(&mut self, mode: &AddressingMode) {
+  pub fn bcs(&mut self, _mode: &AddressingMode) {
     if self.status & Flag::carry() != 0 {
-      let addr = self.get_operand_address(mode);
+      let addr = self.get_operand_address(_mode);
       self.program_counter = addr
     }
   }
 
   // キャリーフラグをセット
-  pub fn sec(&mut self, mode: &AddressingMode) {
+  pub fn sec(&mut self, _mode: &AddressingMode) {
     self.status |= Flag::carry();
   }
 
   // デシマルモードをセット
-  pub fn sed(&mut self, mode: &AddressingMode) {
+  pub fn sed(&mut self, _mode: &AddressingMode) {
     self.status |= Flag::decimal();
   }
 
   // ゼロフラグが立っていたら分岐
-  pub fn beq(&mut self, mode: &AddressingMode) {
+  pub fn beq(&mut self, _mode: &AddressingMode) {
     if self.status & Flag::zero() != 0 {
-      let addr = self.get_operand_address(mode);
+      let addr = self.get_operand_address(_mode);
       self.program_counter = addr
     }
   }
@@ -461,8 +461,8 @@ impl CPU {
   // レジスタaとメモリの値の論理積が0ならゼロフラグを立てる
   // メモリの7ビットと6ビットを基に
   // オーバーフローフラグとネガティブフラグを立てる
-  pub fn bit(&mut self, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
+  pub fn bit(&mut self, _mode: &AddressingMode) {
+    let addr = self.get_operand_address(_mode);
     let value = self.mem_read(addr);
     let result = value & self.register_a;
     self.status = if result == 0 {
@@ -475,49 +475,49 @@ impl CPU {
   }
 
   // ネガティブフラグが立っていたら分岐
-  pub fn bmi(&mut self, mode: &AddressingMode) {
+  pub fn bmi(&mut self, _mode: &AddressingMode) {
     if self.status & Flag::negative() != 0 {
-      let addr = self.get_operand_address(mode);
+      let addr = self.get_operand_address(_mode);
       self.program_counter = addr
     }
   }
 
   // ゼロフラグがクリアなら分岐
-  pub fn bne(&mut self, mode: &AddressingMode) {
+  pub fn bne(&mut self, _mode: &AddressingMode) {
     if self.status & Flag::zero() == 0 {
-      let addr = self.get_operand_address(mode);
+      let addr = self.get_operand_address(_mode);
       self.program_counter = addr
     }
   }
 
   // ネガティブフラグがクリアなら分岐
-  pub fn bpl(&mut self, mode: &AddressingMode) {
+  pub fn bpl(&mut self, _mode: &AddressingMode) {
     if self.status & Flag::negative() == 0 {
-      let addr = self.get_operand_address(mode);
+      let addr = self.get_operand_address(_mode);
       self.program_counter = addr;
     }
   }
 
   // オーバーフローフラグのクリア
-  pub fn clv(&mut self, mode: &AddressingMode) {
+  pub fn clv(&mut self, _mode: &AddressingMode) {
     self.status &= !Flag::overflow();
   }
 
-  pub fn cmp(&mut self, mode: &AddressingMode) {
-    self._cmp(self.register_a, mode);
+  pub fn cmp(&mut self, _mode: &AddressingMode) {
+    self._cmp(self.register_a, _mode);
   }
 
-  pub fn cpx(&mut self, mode: &AddressingMode) {
-    self._cmp(self.register_x, mode);
+  pub fn cpx(&mut self, _mode: &AddressingMode) {
+    self._cmp(self.register_x, _mode);
   }
 
   // compare register y
-  pub fn cpy(&mut self, mode: &AddressingMode) {
-    self._cmp(self.register_y, mode);
+  pub fn cpy(&mut self, _mode: &AddressingMode) {
+    self._cmp(self.register_y, _mode);
   }
 
-  pub fn _cmp(&mut self, target: u8, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
+  pub fn _cmp(&mut self, target: u8, _mode: &AddressingMode) {
+    let addr = self.get_operand_address(_mode);
     let value = self.mem_read(addr);
 
     if target >= value {
@@ -531,7 +531,7 @@ impl CPU {
   }
 
   // break
-  pub fn brk(&mut self, mode: &AddressingMode) {
+  pub fn brk(&mut self, _mode: &AddressingMode) {
     // TODO!
     self._push_u16(self.program_counter);
     self._push(self.status);
@@ -541,39 +541,39 @@ impl CPU {
   }
 
   // オーバーフローフラグがクリアなら分岐
-  pub fn bvc(&mut self, mode: &AddressingMode) {
+  pub fn bvc(&mut self, _mode: &AddressingMode) {
     if self.status & Flag::overflow() == 0 {
-      let addr = self.get_operand_address(mode);
+      let addr = self.get_operand_address(_mode);
       self.program_counter = addr;
     }
   }
 
   // オーバーフローフラグが立っていたら分岐
-  pub fn bvs(&mut self, mode: &AddressingMode) {
+  pub fn bvs(&mut self, _mode: &AddressingMode) {
     if self.status & Flag::overflow() != 0 {
-      let addr = self.get_operand_address(mode);
+      let addr = self.get_operand_address(_mode);
       self.program_counter = addr;
     }
   }
 
   // キャリーをクリア
-  pub fn clc(&mut self, mode: &AddressingMode) {
+  pub fn clc(&mut self, _mode: &AddressingMode) {
     self.status &= !Flag::carry();
   }
 
   // デシマルモードをクリア
-  pub fn cld(&mut self, mode: &AddressingMode) {
+  pub fn cld(&mut self, _mode: &AddressingMode) {
     self.status &= !Flag::decimal();
   }
 
   // インタラプトをクリア
-  pub fn cli(&mut self, mode: &AddressingMode) {
+  pub fn cli(&mut self, _mode: &AddressingMode) {
     self.status &= !Flag::interrupt_disable();
   }
 
   // デクリメントメモリ
-  pub fn dec(&mut self, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
+  pub fn dec(&mut self, _mode: &AddressingMode) {
+    let addr = self.get_operand_address(_mode);
     let value = self.mem_read(addr);
     let value = value.wrapping_sub(1);
 
@@ -582,26 +582,26 @@ impl CPU {
   }
 
   // デクリメントXレジスタ
-  pub fn dex(&mut self, mode: &AddressingMode) {
+  pub fn dex(&mut self, _mode: &AddressingMode) {
     self.register_x = self.register_x.wrapping_sub(1);
     self.update_zero_and_negative_flags(self.register_x);
   }
 
   // デクリメントYレジスタ
-  pub fn dey(&mut self, mode: &AddressingMode) {
+  pub fn dey(&mut self, _mode: &AddressingMode) {
     self.register_y = self.register_y.wrapping_sub(1);
     self.update_zero_and_negative_flags(self.register_y);
   }
 
   // デシマルモードをクリア
-  pub fn sei(&mut self, mode: &AddressingMode) {
+  pub fn sei(&mut self, _mode: &AddressingMode) {
     self.status |= Flag::interrupt_disable();
   }
 
   // レジスタaの値とメモリの値の排他的論理和をレジスタaに書き込む
   // like AND,ORA
-  pub fn eor(&mut self, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
+  pub fn eor(&mut self, _mode: &AddressingMode) {
+    let addr = self.get_operand_address(_mode);
     let value = self.mem_read(addr);
 
     self.register_a ^= value;
@@ -609,8 +609,8 @@ impl CPU {
   }
 
   // デクリメントメモリ
-  pub fn inc(&mut self, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
+  pub fn inc(&mut self, _mode: &AddressingMode) {
+    let addr = self.get_operand_address(_mode);
     let value = self.mem_read(addr);
     let (value, _) = value.overflowing_add(1);
 
@@ -619,7 +619,7 @@ impl CPU {
   }
 
   // デクリメントXレジスタ
-  pub fn inx(&mut self, mode: &AddressingMode) {
+  pub fn inx(&mut self, _mode: &AddressingMode) {
     let (value, _) = self.register_x.overflowing_add(1);
 
     self.register_x = value;
@@ -627,15 +627,15 @@ impl CPU {
   }
 
   // デクリメントYレジスタ
-  pub fn iny(&mut self, mode: &AddressingMode) {
+  pub fn iny(&mut self, _mode: &AddressingMode) {
     let (value, _) = self.register_y.overflowing_add(1);
 
     self.register_y = value;
     self.update_zero_and_negative_flags(value);
   }
 
-  pub fn jmp(&mut self, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
+  pub fn jmp(&mut self, _mode: &AddressingMode) {
+    let addr = self.get_operand_address(_mode);
     self.program_counter = addr;
     // 引数の関係上あとで+2するので整合性のため-2する
     self.program_counter -= 2;
@@ -651,13 +651,13 @@ impl CPU {
 
   // 算術右シフト
   // like ASR,ROL,ROR
-  pub fn lsr(&mut self, mode: &AddressingMode) {
-    let (value, carry) = if mode == &AddressingMode::Accumulator {
+  pub fn lsr(&mut self, _mode: &AddressingMode) {
+    let (value, carry) = if _mode == &AddressingMode::Accumulator {
       let carry = (self.register_a & 0x01) != 0; // 最下位ビットが立っているか
       self.register_a /= 2;
       (self.register_a, carry)
     } else {
-      let addr = self.get_operand_address(mode);
+      let addr = self.get_operand_address(_mode);
       let value = self.mem_read(addr);
       let carry = (value & 0x01) != 0;
       let value = value / 2;
@@ -675,8 +675,8 @@ impl CPU {
 
   // レジスタaの値とメモリの値の論理和をレジスタaに書き込む
   // like AND,EOR
-  pub fn ora(&mut self, mode: &AddressingMode) {
-    let addr = self.get_operand_address(mode);
+  pub fn ora(&mut self, _mode: &AddressingMode) {
+    let addr = self.get_operand_address(_mode);
     let value = self.mem_read(addr);
 
     self.register_a |= value;
@@ -685,14 +685,14 @@ impl CPU {
 
   // 算術左シフト(キャリーによる補完あり)
   // like ASL,LSR,ROR
-  pub fn rol(&mut self, mode: &AddressingMode) {
-    let (value, carry) = if mode == &AddressingMode::Accumulator {
+  pub fn rol(&mut self, _mode: &AddressingMode) {
+    let (value, carry) = if _mode == &AddressingMode::Accumulator {
       let (value, carry) = self.register_a.overflowing_mul(2);
       let value = value | (self.status & Flag::carry());
       self.register_a = value;
       (value, carry)
     } else {
-      let addr = self.get_operand_address(mode);
+      let addr = self.get_operand_address(_mode);
       let value = self.mem_read(addr);
       let (value, carry) = value.overflowing_mul(2);
       let value = value | (self.status & Flag::carry());
@@ -710,13 +710,13 @@ impl CPU {
 
   // 算術右シフト(キャリーによる補完あり)
   // like ASR,ASL,ROL
-  pub fn ror(&mut self, mode: &AddressingMode) {
-    let (value, carry) = if mode == &AddressingMode::Accumulator {
+  pub fn ror(&mut self, _mode: &AddressingMode) {
+    let (value, carry) = if _mode == &AddressingMode::Accumulator {
       let carry = (self.register_a & 0x01) != 0; // 最下位ビットが立っているか
       self.register_a = (self.register_a / 2) | ((self.status & Flag::carry()) << 7);
       (self.register_a, carry)
     } else {
-      let addr = self.get_operand_address(mode);
+      let addr = self.get_operand_address(_mode);
       let value = self.mem_read(addr);
       let carry = (value & 0x01) != 0;
       let value = (value / 2) | ((self.status & Flag::carry()) << 7);
@@ -734,9 +734,9 @@ impl CPU {
 
   // レジスタaとメモリの値の差をレジスタaに書き込む
   // like ADC
-  pub fn sbc(&mut self, mode: &AddressingMode) {
+  pub fn sbc(&mut self, _mode: &AddressingMode) {
     // A-M-(1-C)
-    let addr = self.get_operand_address(mode);
+    let addr = self.get_operand_address(_mode);
     let value = self.mem_read(addr);
 
     let carry = self.status & Flag::carry();
