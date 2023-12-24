@@ -16,11 +16,12 @@ RUN apt-get update && \
     tk-dev \
     -qqy \
     --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives \
-    curl zip unzip tar
+    curl zip unzip tar \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives
 
 RUN rustup default nightly && rustup update
 RUN cargo install cargo-vcpkg
+# RUN cargo vcpkg build
 
 ENV LAST_RUST_IMAGE_UPDATE=2018-10-13
 

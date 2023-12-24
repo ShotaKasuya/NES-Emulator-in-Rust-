@@ -1,5 +1,7 @@
 extern crate sdl2;
 
+use std::env;
+
 use rand::Rng;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -16,7 +18,6 @@ mod opscodes;
 use crate::cpu::CPU;
 
 fn main() {
-  println!("aaa");
   // init sdl2
   let sdl_context = sdl2::init().unwrap();
   let video_subsystem = sdl_context.video().unwrap();
