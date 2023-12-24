@@ -83,7 +83,7 @@ pub struct CPU {
   pub status: u8,
   pub stack_pointer: u8,
   pub program_counter: u16,
-  memory: [u8; 0x10000],
+  pub memory: [u8; 0x10000],
 }
 
 impl CPU {
@@ -219,9 +219,9 @@ impl CPU {
       for op in CPU_OPS_CODES.iter() {
         if op.code == opscode {
           // FIX ME FOR TEST
-          if op.name == "BRK" {
-            return;
-          }
+          // if op.name == "BRK" {
+          //   return;
+          // }
           callback(self);
           call(self, &op);
           break;

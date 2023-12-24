@@ -1,7 +1,5 @@
 extern crate sdl2;
 
-use std::env;
-
 use rand::Rng;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -61,7 +59,10 @@ fn main() {
   ];
 
   let mut cpu = CPU::new();
-  cpu.load(game_code);
+  // cpu.load(game_code);
+  // 蛇ゲームの場合はプログラムの配置が0x0600からのよう
+  cpu.memory[0x0600..(0x0600 + game_code.len())].copy_from_slice(&game_code[..]);
+  cpu.mem_write_u16(0xFFFC, 0x0600); // プログラムカウンタのセット
   cpu.reset();
 
   let mut screen_state = [0 as u8; 32 * 3 * 32];
