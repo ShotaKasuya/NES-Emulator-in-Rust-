@@ -10,6 +10,7 @@ use sdl2::EventPump;
 #[macro_use]
 extern crate lazy_static;
 
+mod bus;
 mod cpu;
 mod opscodes;
 

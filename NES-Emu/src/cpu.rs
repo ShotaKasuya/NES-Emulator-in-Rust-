@@ -1,3 +1,6 @@
+use std::simd::MaskElement;
+
+use crate::bus::Bus;
 use crate::opscodes::{call, CPU_OPS_CODES};
 
 #[derive(Debug, PartialEq)]
@@ -83,7 +86,22 @@ pub struct CPU {
   pub status: u8,
   pub stack_pointer: u8,
   pub program_counter: u16,
-  pub memory: [u8; 0x10000],
+  pub bus: Bus,
+}
+
+impl Mem for CPU {
+  fn mem_read(&self, addr: u16) -> u8 {
+    self.bus.mem_read(addr)
+  }
+  fn mem_write(&mut self, addr: u16, data: u16) {
+    self.bus.mem_write(addr, data)
+  }
+  fn mem_read_u16(&self, pos: u16) -> u16 {
+    self.bus.mem_read_u16(pos)
+  }
+  fn mem_write_u16(&mut self, pos: u16, data: u16) {
+    self.bus.mem_write_u16(pos, data)
+  }
 }
 
 impl CPU {
@@ -95,7 +113,7 @@ impl CPU {
       status: 0,
       stack_pointer: 0xFF,
       program_counter: 0,
-      memory: [0x00; 0x10000],
+      bus: Bus::new(),
     }
   }
 
