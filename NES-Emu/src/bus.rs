@@ -28,6 +28,11 @@ const RAM_MIRRORS_END: u16 = 0x1FFF;
 const PPU_REGISTERS: u16 = 0x2000;
 const PPU_REGISTERS_MIRRORS_END: u16 = 0x3FFF;
 
+pub trait Mem {
+  fn mem_read(&self, addr: u16) -> u8;
+  fn mem_write(&mut self, addr: u16, data: u8);
+}
+
 impl Mem for Bus {
   fn mem_read(&self, addr: u16) -> u8 {
     match addr {

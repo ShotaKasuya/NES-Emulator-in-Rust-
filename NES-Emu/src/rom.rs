@@ -1,5 +1,3 @@
-use std::arch::x86_64::_CMP_TRUE_UQ;
-
 #[derive(Debug, PartialEq)]
 pub enum Mirroring {
   VERTICAL,
@@ -7,7 +5,7 @@ pub enum Mirroring {
   FOUR_SCREEN,
 }
 
-const NES_TAG: Vec<u8> = vec!['N', 'E', 'S', '\0'];
+const NES_TAG: [u8; 4] = [0x4E, 0x45, 0x53, 0x1A];
 const PRG_ROM_PAGE_SIZE: usize = 16 * 1024;
 const CHR_ROM_PAGE_SIZE: usize = 8 * 1024;
 
@@ -44,10 +42,19 @@ impl Rom {
     let chr_rom_start = prg_rom_start + prg_rom_size;
 
     Ok(Rom {
-      prg_rom: raw[prg_rom_start..(prg_rom_start + prg_rom_size)],
+      prg_rom: raw[prg_rom_start..(prg_rom_start + prg_rom_size)].to_vec(),
       chr_rom: raw[chr_rom_start..(chr_rom_start + chr_rom_size)].to_vec(),
       mapper: mapper,
       screen_mirroring: screen_mirroring,
     })
+  }
+
+  pub fn empty() -> Self {
+    return Rom {
+      prg_rom: vec![],
+      chr_rom: vec![],
+      mapper: 0,
+      screen_mirroring: Mirroring::VERTICAL,
+    };
   }
 }

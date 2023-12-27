@@ -15,7 +15,9 @@ mod cpu;
 mod opscodes;
 mod rom;
 
+use crate::bus::Mem;
 use crate::cpu::CPU;
+use crate::rom::Rom;
 
 fn main() {
   // init sdl2
@@ -60,10 +62,11 @@ fn main() {
     0xea, 0xca, 0xd0, 0xfb, 0x60,
   ];
 
-  let mut cpu = CPU::new();
+  todo!("ファイル読み込み");
+
+  let mut cpu = CPU::new(Rom::empty());
   // cpu.load(game_code);
   // 蛇ゲームの場合はプログラムの配置が0x0600からのよう
-  cpu.memory[0x0600..(0x0600 + game_code.len())].copy_from_slice(&game_code[..]);
   cpu.mem_write_u16(0xFFFC, 0x0600); // プログラムカウンタのセット
   cpu.reset();
 
