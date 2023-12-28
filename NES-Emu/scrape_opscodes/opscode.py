@@ -1,5 +1,5 @@
 import csv
-
+# プログラム自動生成
 header = '''
 use crate::cpu::AddressingMode;
 use crate::cpu::OpCode;
