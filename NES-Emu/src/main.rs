@@ -13,11 +13,14 @@ use std::io::Read;
 extern crate lazy_static;
 
 mod bus;
+mod cartridge;
 mod cpu;
 mod opscodes;
 mod rom;
 
+use crate::bus::Bus;
 use crate::bus::Mem;
+use crate::cpu::trace;
 use crate::cpu::CPU;
 use crate::rom::Rom;
 
@@ -47,7 +50,8 @@ fn main() {
   let mut buffer = vec![0; metadata.len() as usize];
   f.read(&mut buffer).expect("buffer overflow");
   let rom = Rom::new(&buffer).expect("load error");
-  let mut cpu = CPU::new(rom);
+  let bus = Bus::new(rom);
+  let mut cpu = CPU::new(bus);
 
   // cpu.load(game_code);
   // 蛇ゲームの場合はプログラムの配置が0x0600からのよう

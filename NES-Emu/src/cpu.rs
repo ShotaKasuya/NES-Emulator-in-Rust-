@@ -88,6 +88,11 @@ pub struct CPU {
   pub bus: Bus,
 }
 
+pub fn trace(cpu: &CPU) -> String {
+  // 空実装
+  String::from("")
+}
+
 impl Mem for CPU {
   fn mem_read(&self, addr: u16) -> u8 {
     self.bus.mem_read(addr)
@@ -98,7 +103,7 @@ impl Mem for CPU {
 }
 
 impl CPU {
-  pub fn new(rom: Rom) -> Self {
+  pub fn new(bus: Bus) -> Self {
     CPU {
       register_a: 0,
       register_x: 0,
@@ -106,7 +111,7 @@ impl CPU {
       status: 0,
       stack_pointer: 0xFF,
       program_counter: 0,
-      bus: Bus::new(rom),
+      bus: bus,
     }
   }
 
@@ -803,7 +808,7 @@ mod test {
 
   use super::*;
   use crate::bus::{self, Bus};
-  // use crate::cartridge::test::test_rom;
+  use crate::cartridge::test::test_rom;
 
   #[test]
   fn test_format_trace() {
@@ -845,8 +850,8 @@ mod test {
     bus.mem_write(101, 0x33);
 
     // data
-    bus.mem_write(0x33, 00);
-    bus.mem_write(0x34, 04);
+    bus.mem_write(0x33, 0x00);
+    bus.mem_write(0x34, 0x04);
 
     // target cell
     bus.mem_write(0x400, 0xAA);
@@ -868,7 +873,7 @@ mod test {
   where
     F: Fn(&mut CPU),
   {
-    let mut cpu = CPU::new(Rom::empty());
+    let mut cpu = CPU::new(Bus::new(Rom::empty()));
     cpu.load();
     cpu.reset();
 
