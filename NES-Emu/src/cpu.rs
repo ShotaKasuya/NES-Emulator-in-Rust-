@@ -102,29 +102,87 @@ pub fn trace(cpu: &CPU) -> String {
   // Y:03 => Resister Y
   // P:24 => Status
   // SP:FD => Stack Pointer
-  let pc = format!("{:<04X}", cpu.program_counter);
-  let op = cpu.mem_read(cpu.program_counter);
+  let program_counter = cpu.program_counter - 1;
+  let pc = format!("{:<04X}", program_counter);
+  let op = cpu.mem_read(program_counter);
   let ops = cpu.find_ops(op).unwrap();
   let mut args: Vec<u8> = vec![];
   for n in 1..ops.bytes {
-    let arg = cpu.mem_read(cpu.program_counter + n);
+    let arg = cpu.mem_read(program_counter + n);
     args.push(arg);
   }
+  let bin = binary(op, &args);
   let asm = disasm(&ops, &args);
   let memacc = memory_access(ops.addressing_mode, &args);
   let status = cpu2str(cpu);
 
   let mut outputs: Vec<String> = vec![];
   outputs.push(pc);
-  // outputs.push(op,args);
+  outputs.push(bin);
   outputs.push(asm);
   outputs.push(memacc);
   outputs.push(status);
   outputs.join(" ")
 }
 
+fn binary(op: u8, args: &Vec<u8>) -> String {
+  let mut list: Vec<String> = vec![];
+  list.push(format!("{:<02X}", op));
+  for v in args {
+    list.push(format!("{:02X}", v));
+  }
+  list.join(" ")
+}
+
 fn disasm(ops: &OpCode, args: &Vec<u8>) -> String {
-  return String::from("");
+  return format!("{} {}", ops.name, address(&ops.addressing_mode, args));
+}
+
+fn address(mode: &AddressingMode, args: &Vec<u8>) -> String {
+  match mode {
+    AddressingMode::Implied => {
+      return format!("");
+    }
+    AddressingMode::Accumulator => {
+      return format!("");
+    }
+    AddressingMode::Immediate => {
+      return format!("#${:<02X}", args[0]);
+    }
+    AddressingMode::ZeroPage => {
+      return format!("${:<02X}", args[0]);
+    }
+    AddressingMode::Absolute => {
+      return format!("${:<02X}{:<02X}", args[1], args[0]);
+    }
+    AddressingMode::ZeroPage_X => {
+      return format!("${:<02X},X", args[0]);
+    }
+    AddressingMode::ZeroPage_Y => {
+      return format!("$${:<02X},Y", args[0]);
+    }
+    AddressingMode::Absolute_X => {
+      return format!("${:<02X}{:<02X},X", args[1], args[0]);
+    }
+    AddressingMode::Absolute_Y => {
+      return format!("${:<02X}{:<02X},Y", args[1], args[0]);
+    }
+    AddressingMode::Indirect => {
+      return format!("(${:<02X}{:<02X})", args[1], args[0]);
+    }
+    AddressingMode::Indirect_X => {
+      return format!("(${:<02X},X)", args[0]);
+    }
+    AddressingMode::Indirect_Y => {
+      return format!("(${:<02X}),Y", args[0]);
+    }
+    AddressingMode::Relative => {
+      return format!("${:<02X}{:<02X}", args[1], args[0]);
+    }
+    AddressingMode::NoneAddressing => {
+      panic!("mode {:?} is not supported", mode);
+    }
+  }
 }
 
 fn memory_access(mode: AddressingMode, args: &Vec<u8>) -> String {
