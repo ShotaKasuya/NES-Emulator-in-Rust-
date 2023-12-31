@@ -1,8 +1,10 @@
 use crate::bus::{Bus, Mem};
 use crate::opscodes::{call, CPU_OPS_CODES};
 use crate::rom::Rom;
+use std::fmt::format;
+use std::marker::Copy;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
   Accumulator,
@@ -21,6 +23,7 @@ pub enum AddressingMode {
   NoneAddressing,
 }
 
+#[derive(Clone)]
 pub struct OpCode {
   pub code: u8,
   pub name: String,
@@ -90,7 +93,49 @@ pub struct CPU {
 
 pub fn trace(cpu: &CPU) -> String {
   // 空実装
-  String::from("")
+  // 0064  A2 01     LDX #$01                        A:01 X:02 Y:03 P:24 SP:FD
+  // 0064 => program_counter
+  // A2 01 => binary code
+  // LDX #$01 => assembly code
+  // A:01 => Accumrator
+  // X:02 => Resister X
+  // Y:03 => Resister Y
+  // P:24 => Status
+  // SP:FD => Stack Pointer
+  let pc = format!("{:<04X}", cpu.program_counter);
+  let op = cpu.mem_read(cpu.program_counter);
+  let ops = cpu.find_ops(op).unwrap();
+  let mut args: Vec<u8> = vec![];
+  for n in 1..ops.bytes {
+    let arg = cpu.mem_read(cpu.program_counter + n);
+    args.push(arg);
+  }
+  let asm = disasm(&ops, &args);
+  let memacc = memory_access(ops.addressing_mode, &args);
+  let status = cpu2str(cpu);
+
+  let mut outputs: Vec<String> = vec![];
+  outputs.push(pc);
+  // outputs.push(op,args);
+  outputs.push(asm);
+  outputs.push(memacc);
+  outputs.push(status);
+  outputs.join(" ")
+}
+
+fn disasm(ops: &OpCode, args: &Vec<u8>) -> String {
+  return String::from("");
+}
+
+fn memory_access(mode: AddressingMode, args: &Vec<u8>) -> String {
+  return String::from("");
+}
+
+fn cpu2str(cpu: &CPU) -> String {
+  format!(
+    "A:{:<02X} X{:02X} Y{:<02X} P:{:02X} SP{:02X}",
+    cpu.register_a, cpu.register_x, cpu.register_y, cpu.status, cpu.stack_pointer,
+  )
 }
 
 impl Mem for CPU {
@@ -232,18 +277,28 @@ impl CPU {
 
       println!("OPS: {:X}", opscode);
 
-      for op in CPU_OPS_CODES.iter() {
-        if op.code == opscode {
-          // FIX ME FOR TEST
-          // if op.name == "BRK" {
-          //   return;
-          // }
+      let op = self.find_ops(opscode);
+      match op {
+        Some(op) => {
+          // FIXME FOR TEST
+          if op.name == "BRK" {
+            return;
+          }
           callback(self);
           call(self, &op);
-          break;
         }
+        _ => {}
       }
     }
+  }
+
+  fn find_ops(&self, opscode: u8) -> Option<OpCode> {
+    for op in CPU_OPS_CODES.iter() {
+      if op.code == opscode {
+        return Some(op.clone());
+      }
+    }
+    return None;
   }
   pub fn txs(&mut self, _mode: &AddressingMode) {
     self.stack_pointer = self.register_x;
@@ -804,10 +859,8 @@ impl CPU {
 #[cfg(test)]
 mod test {
 
-  use std::hash::BuildHasher;
-
   use super::*;
-  use crate::bus::{self, Bus};
+  use crate::bus::Bus;
   use crate::cartridge::test::test_rom;
 
   #[test]
