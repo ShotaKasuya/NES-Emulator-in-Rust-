@@ -55,7 +55,7 @@ pub enum Flag {
   InterruptDisable = 1 << 2,
   Decimal = 1 << 3,
   Break = 1 << 4,
-  // (No CPU effect; always pushed as 1)
+  Break2 = 1 << 5,
   Overflow = 1 << 6,
   Negative = 1 << 7,
 }
@@ -72,6 +72,9 @@ impl Flag {
   }
   pub fn decimal() -> u8 {
     Flag::Decimal as u8
+  }
+  pub fn break2() -> u8 {
+    Flag::Break2 as u8
   }
   pub fn overflow() -> u8 {
     Flag::Overflow as u8
@@ -113,16 +116,10 @@ pub fn trace(cpu: &CPU) -> String {
   }
   let bin = binary(op, &args);
   let asm = disasm(&ops, &args);
-  let memacc = memory_access(ops.addressing_mode, &args);
+  let memacc = memory_access(&cpu, ops.addressing_mode, &args);
   let status = cpu2str(cpu);
 
-  let mut outputs: Vec<String> = vec![];
-  outputs.push(pc);
-  outputs.push(bin);
-  outputs.push(asm);
-  outputs.push(memacc);
-  outputs.push(status);
-  outputs.join(" ")
+  format!("{:<6}{:<10}{:<12}{:<20}{}", pc, bin, asm, memacc, status)
 }
 
 fn binary(op: u8, args: &Vec<u8>) -> String {
@@ -135,7 +132,7 @@ fn binary(op: u8, args: &Vec<u8>) -> String {
 }
 
 fn disasm(ops: &OpCode, args: &Vec<u8>) -> String {
-  return format!("{} {}", ops.name, address(&ops.addressing_mode, args));
+  format!("{} {}", ops.name, address(&ops.addressing_mode, args))
 }
 
 fn address(mode: &AddressingMode, args: &Vec<u8>) -> String {
@@ -185,13 +182,35 @@ fn address(mode: &AddressingMode, args: &Vec<u8>) -> String {
   }
 }
 
-fn memory_access(mode: AddressingMode, args: &Vec<u8>) -> String {
-  return String::from("");
+fn memory_access(cpu: &CPU, mode: AddressingMode, args: &Vec<u8>) -> String {
+  match mode {
+    AddressingMode::Indirect_X => {
+      let base = args[0];
+      let ptr: u8 = (base as u8).wrapping_add(cpu.register_x);
+      let addr = cpu.mem_read_u16(ptr as u16);
+      let value = cpu.mem_read(addr);
+      format!("= {:>04X} @ {:04X} = {:02X}", ptr, addr, value)
+    }
+    AddressingMode::Indirect_Y => {
+      // = 0400 @ 0400 = AA
+      let base = args[0];
+      let deref_base = cpu.mem_read_u16(base as u16);
+      let deref = deref_base.wrapping_add(cpu.register_y as u16);
+      let value = cpu.mem_read(deref);
+      format!("= {:>04X} @ {:04X} = {:02X}", deref_base, deref, value)
+    }
+    AddressingMode::NoneAddressing => {
+      panic!("mode {:?} is not supported", mode);
+    }
+    _ => {
+      format!("")
+    }
+  }
 }
 
 fn cpu2str(cpu: &CPU) -> String {
   format!(
-    "A:{:<02X} X{:02X} Y{:<02X} P:{:02X} SP{:02X}",
+    "A:{:<02X} X:{:02X} Y:{:<02X} P:{:02X} SP:{:02X}",
     cpu.register_a, cpu.register_x, cpu.register_y, cpu.status, cpu.stack_pointer,
   )
 }
@@ -211,8 +230,8 @@ impl CPU {
       register_a: 0,
       register_x: 0,
       register_y: 0,
-      status: 0,
-      stack_pointer: 0xFF,
+      status: Flag::interrupt_disable() | Flag::break2(), // Fixme
+      stack_pointer: 0xFD,                                // Fixme
       program_counter: 0,
       bus: bus,
     }
