@@ -20,6 +20,7 @@ mod rom;
 
 use crate::bus::Bus;
 use crate::bus::Mem;
+use crate::cartridge::test::test_rom;
 use crate::cpu::trace;
 use crate::cpu::CPU;
 use crate::rom::Rom;
@@ -42,15 +43,9 @@ fn main() {
   let mut texture = creator
     .create_texture_target(PixelFormatEnum::RGB24, 32, 32)
     .unwrap();
-  println!("Hello, world!");
 
   // todo!("ファイル読み込み");
-  let mut f = File::open("rom/snake.nes").expect("no file found");
-  let metadata = std::fs::metadata("rom/snake.nes").expect("uenable to read metadata");
-  let mut buffer = vec![0; metadata.len() as usize];
-  f.read(&mut buffer).expect("buffer overflow");
-  let rom = Rom::new(&buffer).expect("load error");
-  let bus = Bus::new(rom);
+  let bus = Bus::new(test_rom());
   let mut cpu = CPU::new(bus);
 
   // cpu.load(game_code);

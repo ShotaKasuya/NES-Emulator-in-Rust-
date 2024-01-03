@@ -174,7 +174,7 @@ fn address(mode: &AddressingMode, args: &Vec<u8>) -> String {
       return format!("(${:<02X}),Y", args[0]);
     }
     AddressingMode::Relative => {
-      return format!("${:<02X}{:<02X}", args[1], args[0]);
+      return format!("*+{:<02X}", args[0] + 2);
     }
     AddressingMode::NoneAddressing => {
       panic!("mode {:?} is not supported", mode);
@@ -335,9 +335,11 @@ impl CPU {
     self.register_a = 0;
     self.register_x = 0;
     self.register_y = 0;
-    self.status = 0;
-    self.stack_pointer = 0xFF;
+    self.status = Flag::interrupt_disable() | Flag::break2();
+    self.stack_pointer = 0xFD;
     self.program_counter = self.mem_read_u16(0xFFFC);
+    // println!("PC: {:X}", self.program_counter);
+    self.program_counter = 0xC000;
   }
 
   pub fn run(&mut self) {
@@ -352,7 +354,7 @@ impl CPU {
       let opscode = self.mem_read(self.program_counter);
       self.program_counter += 1;
 
-      println!("OPS: {:X}", opscode);
+      // println!("OPS: {:X}", opscode);
 
       let op = self.find_ops(opscode);
       match op {
