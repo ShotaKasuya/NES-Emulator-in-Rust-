@@ -154,7 +154,7 @@ fn address(program_counter: u16, ops: &OpCode, args: &Vec<u8>) -> String {
       return format!("(${:<02X}),Y", args[0]);
     }
     AddressingMode::Relative => {
-      return format!("*+{:<02X}", args[0] + 2);
+      return format!("${:<02X}", program_counter + args[0] as u16 + 2);
     }
     AddressingMode::NoneAddressing => {
       panic!("mode {:?} is not supported", ops.addressing_mode);
