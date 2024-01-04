@@ -49,40 +49,14 @@ impl OpCode {
   }
 }
 
-pub enum Flag {
-  Carry = 1,
-  Zero = 1 << 1,
-  InterruptDisable = 1 << 2,
-  Decimal = 1 << 3,
-  Break = 1 << 4,
-  Break2 = 1 << 5,
-  Overflow = 1 << 6,
-  Negative = 1 << 7,
-}
-impl Flag {
-  // Getter
-  pub fn carry() -> u8 {
-    Flag::Carry as u8
-  }
-  pub fn zero() -> u8 {
-    Flag::Zero as u8
-  }
-  pub fn interrupt_disable() -> u8 {
-    Flag::InterruptDisable as u8
-  }
-  pub fn decimal() -> u8 {
-    Flag::Decimal as u8
-  }
-  pub fn break2() -> u8 {
-    Flag::Break2 as u8
-  }
-  pub fn overflow() -> u8 {
-    Flag::Overflow as u8
-  }
-  pub fn negative() -> u8 {
-    Flag::Negative as u8
-  }
-}
+const FLAG_CARRY: u8 = 1;
+const FLAG_ZERO: u8 = 1 << 1;
+const FLAG_INTERRUPT: u8 = 1 << 2;
+const FLAG_DECIMAL: u8 = 1 << 3;
+const FLAG_BREAK: u8 = 1 << 4;
+const FLAG_BREAK2: u8 = 1 << 5;
+const FLAG_OVERFLOW: u8 = 1 << 6;
+const FLAG_NEGATICE: u8 = 1 << 7;
 
 pub struct CPU {
   pub register_a: u8,
@@ -115,11 +89,17 @@ pub fn trace(cpu: &CPU) -> String {
     args.push(arg);
   }
   let bin = binary(op, &args);
-  let asm = disasm(&ops, &args);
-  let memacc = memory_access(&cpu, ops.addressing_mode, &args);
+  let asm = disasm(program_counter, &ops, &args);
+  let memacc = memory_access(&cpu, &ops, &args);
   let status = cpu2str(cpu);
 
-  format!("{:<6}{:<10}{:<12}{:<20}{}", pc, bin, asm, memacc, status)
+  format!(
+    "{:<6}{:<10}{:<32}{}",
+    pc,
+    bin,
+    vec![asm, memacc].join(" "),
+    status
+  )
 }
 
 fn binary(op: u8, args: &Vec<u8>) -> String {
@@ -131,17 +111,17 @@ fn binary(op: u8, args: &Vec<u8>) -> String {
   list.join(" ")
 }
 
-fn disasm(ops: &OpCode, args: &Vec<u8>) -> String {
-  format!("{} {}", ops.name, address(&ops.addressing_mode, args))
+fn disasm(program_counter: u16, ops: &OpCode, args: &Vec<u8>) -> String {
+  format!("{} {}", ops.name, address(program_counter, &ops, args))
 }
 
-fn address(mode: &AddressingMode, args: &Vec<u8>) -> String {
-  match mode {
+fn address(program_counter: u16, ops: &OpCode, args: &Vec<u8>) -> String {
+  match ops.addressing_mode {
     AddressingMode::Implied => {
       return format!("");
     }
     AddressingMode::Accumulator => {
-      return format!("");
+      return format!("A");
     }
     AddressingMode::Immediate => {
       return format!("#${:<02X}", args[0]);
@@ -177,13 +157,27 @@ fn address(mode: &AddressingMode, args: &Vec<u8>) -> String {
       return format!("*+{:<02X}", args[0] + 2);
     }
     AddressingMode::NoneAddressing => {
-      panic!("mode {:?} is not supported", mode);
+      panic!("mode {:?} is not supported", ops.addressing_mode);
     }
   }
 }
 
-fn memory_access(cpu: &CPU, mode: AddressingMode, args: &Vec<u8>) -> String {
-  match mode {
+fn memory_access(cpu: &CPU, ops: &OpCode, args: &Vec<u8>) -> String {
+  if ops.name.starts_with("J") {
+    return format!("");
+  }
+  match ops.addressing_mode {
+    AddressingMode::ZeroPage => {
+      let value = cpu.mem_read(args[0] as u16);
+      format!("= {:>02X}", value)
+    }
+    AddressingMode::Absolute => {
+      let hi = args[1] as u16;
+      let lo = args[0] as u16;
+      let addr = hi << 8 | lo;
+      let value = cpu.mem_read(addr);
+      format!("= {:<02X}", value)
+    }
     AddressingMode::Indirect_X => {
       let base = args[0];
       let ptr: u8 = (base as u8).wrapping_add(cpu.register_x);
@@ -200,7 +194,7 @@ fn memory_access(cpu: &CPU, mode: AddressingMode, args: &Vec<u8>) -> String {
       format!("= {:>04X} @ {:04X} = {:02X}", deref_base, deref, value)
     }
     AddressingMode::NoneAddressing => {
-      panic!("mode {:?} is not supported", mode);
+      panic!("mode {:?} is not supported", ops.addressing_mode);
     }
     _ => {
       format!("")
@@ -230,8 +224,8 @@ impl CPU {
       register_a: 0,
       register_x: 0,
       register_y: 0,
-      status: Flag::interrupt_disable() | Flag::break2(), // Fixme
-      stack_pointer: 0xFD,                                // Fixme
+      status: FLAG_INTERRUPT | FLAG_BREAK2, // Fixme
+      stack_pointer: 0xFD,                  // Fixme
       program_counter: 0,
       bus: bus,
     }
@@ -335,7 +329,7 @@ impl CPU {
     self.register_a = 0;
     self.register_x = 0;
     self.register_y = 0;
-    self.status = Flag::interrupt_disable() | Flag::break2();
+    self.status = FLAG_INTERRUPT | FLAG_BREAK2;
     self.stack_pointer = 0xFD;
     self.program_counter = self.mem_read_u16(0xFFFC);
     // println!("PC: {:X}", self.program_counter);
@@ -421,16 +415,16 @@ impl CPU {
   }
 
   pub fn rti(&mut self, _mode: &AddressingMode) {
-    self.status = self._pop();
+    self.status = self._pop() & !FLAG_BREAK | FLAG_BREAK2;
     self.program_counter = self._pop_u16();
   }
 
   pub fn plp(&mut self, _mode: &AddressingMode) {
-    self.status = self._pop();
+    self.status = self._pop() & !FLAG_BREAK | FLAG_BREAK2;
   }
 
   pub fn php(&mut self, _mode: &AddressingMode) {
-    self._push(self.status);
+    self._push(self.status | FLAG_BREAK | FLAG_BREAK2);
   }
 
   pub fn pla(&mut self, _mode: &AddressingMode) {
@@ -471,13 +465,13 @@ impl CPU {
   }
 
   pub fn rts(&mut self, _mode: &AddressingMode) {
-    let value = self._pop_u16();
+    let value = self._pop_u16() + 1;
     self.program_counter = value;
   }
 
   pub fn jsr(&mut self, _mode: &AddressingMode) {
     let addr = self.get_operand_address(_mode);
-    self._push_u16(self.program_counter + 2);
+    self._push_u16(self.program_counter + 2 - 1);
     self.program_counter = addr;
     // 後で+2されるので整合性のため-2する
     self.program_counter -= 2;
@@ -515,7 +509,7 @@ impl CPU {
     let value = self.mem_read(addr);
 
     // n = register_a + value + carry
-    let carry = self.status & Flag::carry();
+    let carry = self.status & FLAG_CARRY;
     let (rhs, carry_flag) = value.overflowing_add(carry);
     // n = register_a + rhs
     let (n, carry_flag2) = self.register_a.overflowing_add(rhs);
@@ -528,14 +522,14 @@ impl CPU {
     self.register_a = n;
 
     self.status = if carry_flag || carry_flag2 {
-      self.status | Flag::carry()
+      self.status | FLAG_CARRY
     } else {
-      self.status & (!Flag::carry())
+      self.status & (!FLAG_CARRY)
     };
     self.status = if overflow {
-      self.status | Flag::overflow()
+      self.status | FLAG_OVERFLOW
     } else {
-      self.status & (!Flag::overflow())
+      self.status & (!FLAG_OVERFLOW)
     };
 
     self.update_zero_and_negative_flags(self.register_a);
@@ -567,16 +561,16 @@ impl CPU {
     };
 
     self.status = if carry {
-      self.status | Flag::carry()
+      self.status | FLAG_CARRY
     } else {
-      self.status & (!Flag::carry())
+      self.status & (!FLAG_CARRY)
     };
     self.update_zero_and_negative_flags(value);
   }
 
   // キャリーがクリアなら分岐
   pub fn bcc(&mut self, _mode: &AddressingMode) {
-    if self.status & Flag::carry() == 0 {
+    if self.status & FLAG_CARRY == 0 {
       let addr = self.get_operand_address(_mode);
       self.program_counter = addr
     }
@@ -584,7 +578,7 @@ impl CPU {
 
   // キャリーが立っていたら分岐
   pub fn bcs(&mut self, _mode: &AddressingMode) {
-    if self.status & Flag::carry() != 0 {
+    if self.status & FLAG_CARRY != 0 {
       let addr = self.get_operand_address(_mode);
       self.program_counter = addr
     }
@@ -592,17 +586,17 @@ impl CPU {
 
   // キャリーフラグをセット
   pub fn sec(&mut self, _mode: &AddressingMode) {
-    self.status |= Flag::carry();
+    self.status |= FLAG_CARRY;
   }
 
   // デシマルモードをセット
   pub fn sed(&mut self, _mode: &AddressingMode) {
-    self.status |= Flag::decimal();
+    self.status |= FLAG_DECIMAL;
   }
 
   // ゼロフラグが立っていたら分岐
   pub fn beq(&mut self, _mode: &AddressingMode) {
-    if self.status & Flag::zero() != 0 {
+    if self.status & FLAG_ZERO != 0 {
       let addr = self.get_operand_address(_mode);
       self.program_counter = addr
     }
@@ -616,17 +610,17 @@ impl CPU {
     let value = self.mem_read(addr);
     let result = value & self.register_a;
     self.status = if result == 0 {
-      self.status | Flag::zero()
+      self.status | FLAG_ZERO
     } else {
-      self.status & (!Flag::zero())
+      self.status & (!FLAG_ZERO)
     };
-    self.status |= value & Flag::overflow();
-    self.status |= value & Flag::negative();
+    self.status |= value & FLAG_OVERFLOW;
+    self.status |= value & FLAG_NEGATICE;
   }
 
   // ネガティブフラグが立っていたら分岐
   pub fn bmi(&mut self, _mode: &AddressingMode) {
-    if self.status & Flag::negative() != 0 {
+    if self.status & FLAG_NEGATICE != 0 {
       let addr = self.get_operand_address(_mode);
       self.program_counter = addr
     }
@@ -634,7 +628,7 @@ impl CPU {
 
   // ゼロフラグがクリアなら分岐
   pub fn bne(&mut self, _mode: &AddressingMode) {
-    if self.status & Flag::zero() == 0 {
+    if self.status & FLAG_ZERO == 0 {
       let addr = self.get_operand_address(_mode);
       self.program_counter = addr
     }
@@ -642,7 +636,7 @@ impl CPU {
 
   // ネガティブフラグがクリアなら分岐
   pub fn bpl(&mut self, _mode: &AddressingMode) {
-    if self.status & Flag::negative() == 0 {
+    if self.status & FLAG_NEGATICE == 0 {
       let addr = self.get_operand_address(_mode);
       self.program_counter = addr;
     }
@@ -650,7 +644,7 @@ impl CPU {
 
   // オーバーフローフラグのクリア
   pub fn clv(&mut self, _mode: &AddressingMode) {
-    self.status &= !Flag::overflow();
+    self.status &= !FLAG_OVERFLOW;
   }
 
   pub fn cmp(&mut self, _mode: &AddressingMode) {
@@ -687,12 +681,12 @@ impl CPU {
     self._push(self.status);
 
     self.program_counter = self.mem_read_u16(0xFFFE);
-    self.status |= Flag::Break as u8;
+    self.status |= FLAG_BREAK;
   }
 
   // オーバーフローフラグがクリアなら分岐
   pub fn bvc(&mut self, _mode: &AddressingMode) {
-    if self.status & Flag::overflow() == 0 {
+    if self.status & FLAG_OVERFLOW == 0 {
       let addr = self.get_operand_address(_mode);
       self.program_counter = addr;
     }
@@ -700,7 +694,7 @@ impl CPU {
 
   // オーバーフローフラグが立っていたら分岐
   pub fn bvs(&mut self, _mode: &AddressingMode) {
-    if self.status & Flag::overflow() != 0 {
+    if self.status & FLAG_OVERFLOW != 0 {
       let addr = self.get_operand_address(_mode);
       self.program_counter = addr;
     }
@@ -708,17 +702,17 @@ impl CPU {
 
   // キャリーをクリア
   pub fn clc(&mut self, _mode: &AddressingMode) {
-    self.status &= !Flag::carry();
+    self.status &= !FLAG_CARRY;
   }
 
   // デシマルモードをクリア
   pub fn cld(&mut self, _mode: &AddressingMode) {
-    self.status &= !Flag::decimal();
+    self.status &= !FLAG_DECIMAL;
   }
 
   // インタラプトをクリア
   pub fn cli(&mut self, _mode: &AddressingMode) {
-    self.status &= !Flag::interrupt_disable();
+    self.status &= !FLAG_INTERRUPT;
   }
 
   // デクリメントメモリ
@@ -745,7 +739,7 @@ impl CPU {
 
   // デシマルモードをクリア
   pub fn sei(&mut self, _mode: &AddressingMode) {
-    self.status |= Flag::interrupt_disable();
+    self.status |= FLAG_INTERRUPT;
   }
 
   // レジスタaの値とメモリの値の排他的論理和をレジスタaに書き込む
@@ -816,9 +810,9 @@ impl CPU {
     };
 
     self.status = if carry {
-      self.status | Flag::carry()
+      self.status | FLAG_CARRY
     } else {
-      self.status & (!Flag::carry())
+      self.status & (!FLAG_CARRY)
     };
     self.update_zero_and_negative_flags(value);
   }
@@ -838,22 +832,22 @@ impl CPU {
   pub fn rol(&mut self, _mode: &AddressingMode) {
     let (value, carry) = if _mode == &AddressingMode::Accumulator {
       let (value, carry) = self.register_a.overflowing_mul(2);
-      let value = value | (self.status & Flag::carry());
+      let value = value | (self.status & FLAG_CARRY);
       self.register_a = value;
       (value, carry)
     } else {
       let addr = self.get_operand_address(_mode);
       let value = self.mem_read(addr);
       let (value, carry) = value.overflowing_mul(2);
-      let value = value | (self.status & Flag::carry());
+      let value = value | (self.status & FLAG_CARRY);
       self.mem_write(addr, value);
       (value, carry)
     };
 
     self.status = if carry {
-      self.status | Flag::carry()
+      self.status | FLAG_CARRY
     } else {
-      self.status & (!Flag::carry())
+      self.status & (!FLAG_CARRY)
     };
     self.update_zero_and_negative_flags(value);
   }
@@ -863,21 +857,21 @@ impl CPU {
   pub fn ror(&mut self, _mode: &AddressingMode) {
     let (value, carry) = if _mode == &AddressingMode::Accumulator {
       let carry = (self.register_a & 0x01) != 0; // 最下位ビットが立っているか
-      self.register_a = (self.register_a / 2) | ((self.status & Flag::carry()) << 7);
+      self.register_a = (self.register_a / 2) | ((self.status & FLAG_CARRY) << 7);
       (self.register_a, carry)
     } else {
       let addr = self.get_operand_address(_mode);
       let value = self.mem_read(addr);
       let carry = (value & 0x01) != 0;
-      let value = (value / 2) | ((self.status & Flag::carry()) << 7);
+      let value = (value / 2) | ((self.status & FLAG_CARRY) << 7);
       self.mem_write(addr, value);
       (value, carry)
     };
 
     self.status = if carry {
-      self.status | Flag::carry()
+      self.status | FLAG_CARRY
     } else {
-      self.status & (!Flag::carry())
+      self.status & (!FLAG_CARRY)
     };
     self.update_zero_and_negative_flags(value);
   }
@@ -889,7 +883,7 @@ impl CPU {
     let addr = self.get_operand_address(_mode);
     let value = self.mem_read(addr);
 
-    let carry = self.status & Flag::carry();
+    let carry = self.status & FLAG_CARRY;
     let (v1, carry_flag) = self.register_a.overflowing_sub(value);
     let (n, carry_flag2) = v1.overflowing_sub(1 - carry);
 
@@ -901,14 +895,14 @@ impl CPU {
 
     // キャリーがない場合にフラグが立つ
     self.status = if !carry_flag && !carry_flag2 {
-      self.status | Flag::carry()
+      self.status | FLAG_CARRY
     } else {
-      self.status & (!Flag::carry())
+      self.status & (!FLAG_CARRY)
     };
     self.status = if overflow {
-      self.status | Flag::overflow()
+      self.status | FLAG_OVERFLOW
     } else {
-      self.status & (!Flag::overflow())
+      self.status & (!FLAG_OVERFLOW)
     };
 
     self.update_zero_and_negative_flags(self.register_a);
@@ -918,16 +912,16 @@ impl CPU {
   fn update_zero_and_negative_flags(&mut self, result: u8) {
     // ネガティブフラグ
     self.status = if result & 0b1000_0000 != 0 {
-      self.status | Flag::negative()
+      self.status | FLAG_NEGATICE
     } else {
-      self.status & (!Flag::negative())
+      self.status & (!FLAG_NEGATICE)
     };
 
     // ゼロフラグ
     self.status = if result == 0 {
-      self.status | Flag::zero()
+      self.status | FLAG_ZERO
     } else {
-      self.status & (!Flag::zero())
+      self.status & (!FLAG_ZERO)
     };
   }
 }
@@ -1038,14 +1032,14 @@ mod test {
   fn test_0xa9_lda_zero_flag() {
     let cpu = run(vec![0xa9, 0x00, 0x00], |_| {});
 
-    assert_status(&cpu, Flag::zero());
+    assert_status(&cpu, FLAG_ZERO);
   }
 
   #[test]
   // ネガティブフラグが正常に立つかのテスト
   fn test_0xa9_lda_negative_flag() {
     let cpu = run(vec![0xa, 0x80, 0x00], |_| {});
-    assert_status(&cpu, Flag::negative());
+    assert_status(&cpu, FLAG_NEGATICE);
   }
 
   #[test]
@@ -1147,7 +1141,7 @@ mod test {
   fn test_adc_has_carry() {
     let cpu = run(vec![0x69, 0x10, 0x00], |cpu| {
       cpu.register_a = 0x1A;
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.register_a, 0x2B);
     assert_status(&cpu, 0x00);
@@ -1159,7 +1153,7 @@ mod test {
       cpu.register_a = 0xFF;
     });
     assert_eq!(cpu.register_a, 0x01);
-    assert_status(&cpu, Flag::carry());
+    assert_status(&cpu, FLAG_CARRY);
   }
   #[test]
   // 正の値同士のADCでオーバーフローが発生する際のテスト
@@ -1168,7 +1162,7 @@ mod test {
       cpu.register_a = 0x7F;
     });
     assert_eq!(cpu.register_a, 0x80);
-    assert_status(&cpu, Flag::overflow() | Flag::negative());
+    assert_status(&cpu, FLAG_OVERFLOW | FLAG_NEGATICE);
   }
   #[test]
   // 負の値同士のADCでオーバーフローが発生する際のテスト
@@ -1178,7 +1172,7 @@ mod test {
     });
     assert_eq!(cpu.register_a, 0x0a);
 
-    let flags = Flag::overflow() | Flag::carry();
+    let flags = FLAG_OVERFLOW | FLAG_CARRY;
     assert_status(&cpu, flags);
   }
   #[test]
@@ -1187,10 +1181,10 @@ mod test {
   fn test_adc_occur_overflow_plus_with_carry() {
     let cpu = run(vec![0x69, 0x6F, 0x00], |cpu| {
       cpu.register_a = 0x10;
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.register_a, 0x80);
-    let flags = Flag::negative() | Flag::overflow();
+    let flags = FLAG_NEGATICE | FLAG_OVERFLOW;
     assert_status(&cpu, flags);
   }
   #[test]
@@ -1199,10 +1193,10 @@ mod test {
   fn test_adc_occur_overflow_minus_with_carry() {
     let cpu = run(vec![0x69, 0x80, 0x00], |cpu| {
       cpu.register_a = 0x80;
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.register_a, 0x01);
-    let flags = Flag::overflow() | Flag::carry();
+    let flags = FLAG_OVERFLOW | FLAG_CARRY;
     assert_status(&cpu, flags);
   }
   #[test]
@@ -1212,7 +1206,7 @@ mod test {
       cpu.register_a = 0x82;
     });
     assert_eq!(cpu.register_a, 0x01);
-    let flags = Flag::carry();
+    let flags = FLAG_CARRY;
     assert_status(&cpu, flags);
   }
   #[test]
@@ -1223,18 +1217,18 @@ mod test {
     });
     assert_eq!(cpu.register_a, 0x0F);
     // SBCでは特に何もなければキャリーフラグが立つ
-    assert_status(&cpu, Flag::carry());
+    assert_status(&cpu, FLAG_CARRY);
   }
   #[test]
   // キャリーフラグを持った状態のSBCテスト
   fn test_sbc_has_carry() {
     let cpu = run(vec![0xe9, 0x10, 0x00], |cpu| {
       cpu.register_a = 0x20;
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.register_a, 0x10);
     // SBCでは特に何もなければキャリーフラグが立つ
-    assert_status(&cpu, Flag::carry());
+    assert_status(&cpu, FLAG_CARRY);
   }
   #[test]
   // キャリーフラグを建てるSBCテスト
@@ -1243,7 +1237,7 @@ mod test {
       cpu.register_a = 0x01;
     });
     assert_eq!(cpu.register_a, 0xFE);
-    let flags = Flag::negative();
+    let flags = FLAG_NEGATICE;
     assert_status(&cpu, flags);
   }
   #[test]
@@ -1253,7 +1247,7 @@ mod test {
       cpu.register_a = 0x7F;
     });
     assert_eq!(cpu.register_a, 0xFD);
-    let flags = Flag::overflow() | Flag::negative();
+    let flags = FLAG_OVERFLOW | FLAG_NEGATICE;
     assert_status(&cpu, flags);
   }
   #[test]
@@ -1261,10 +1255,10 @@ mod test {
   fn test_sbc_occur_overflow_with_carry() {
     let cpu = run(vec![0xe9, 0x81, 0x00], |cpu| {
       cpu.register_a = 0x7F;
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.register_a, 0xFE);
-    let flags = Flag::negative() | Flag::overflow();
+    let flags = FLAG_NEGATICE | FLAG_OVERFLOW;
     assert_status(&cpu, flags);
   }
   #[test]
@@ -1272,10 +1266,10 @@ mod test {
   fn test_sbc_no_overflow() {
     let cpu = run(vec![0xe9, 0x7F, 0x00], |cpu| {
       cpu.register_a = 0x7E;
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.register_a, 0xFF);
-    let flags = Flag::negative();
+    let flags = FLAG_NEGATICE;
     assert_status(&cpu, flags);
   }
   #[test]
@@ -1312,7 +1306,7 @@ mod test {
       cpu.register_a = 0x81;
     });
     assert_eq!(cpu.register_a, 0x02);
-    assert_status(&cpu, Flag::carry());
+    assert_status(&cpu, FLAG_CARRY);
   }
   #[test]
   fn test_asl_zero_page() {
@@ -1327,7 +1321,7 @@ mod test {
       cpu.mem_write(0x0001, 0x83);
     });
     assert_eq!(cpu.mem_read(0x0001), 0x03 * 2);
-    assert_status(&cpu, Flag::carry());
+    assert_status(&cpu, FLAG_CARRY);
   }
   #[test]
   fn test_lsr_accumulator() {
@@ -1351,7 +1345,7 @@ mod test {
       cpu.register_a = 0x03;
     });
     assert_eq!(cpu.register_a, 0x01);
-    assert_status(&cpu, Flag::carry());
+    assert_status(&cpu, FLAG_CARRY);
   }
   #[test]
   fn test_lsr_zero_page_occur_carry() {
@@ -1359,7 +1353,7 @@ mod test {
       cpu.mem_write(0x0001, 0x03);
     });
     assert_eq!(cpu.mem_read(0x0001), 0x01);
-    assert_status(&cpu, Flag::carry());
+    assert_status(&cpu, FLAG_CARRY);
   }
   #[test]
   fn test_lsr_zero_page_zero() {
@@ -1367,7 +1361,7 @@ mod test {
       cpu.mem_write(0x0001, 0x01);
     });
     assert_eq!(cpu.mem_read(0x0001), 0x00);
-    assert_status(&cpu, Flag::carry() | Flag::zero());
+    assert_status(&cpu, FLAG_CARRY | FLAG_ZERO);
   }
   #[test]
   fn test_rol_accumulator() {
@@ -1389,7 +1383,7 @@ mod test {
   fn test_rol_accumulator_with_carry() {
     let cpu = run(vec![0x2a, 0x00], |cpu| {
       cpu.register_a = 0x03;
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.register_a, 0x07);
     assert_status(&cpu, 0);
@@ -1398,7 +1392,7 @@ mod test {
   fn test_rol_zero_page_with_carry() {
     let cpu = run(vec![0x26, 0x01, 0x00], |cpu| {
       cpu.mem_write(0x0001, 0x03);
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.mem_read(0x0001), 0x07);
     assert_status(&cpu, 0);
@@ -1407,7 +1401,7 @@ mod test {
   fn test_rol_accumulator_zero_with_carry() {
     let cpu = run(vec![0x2a, 0x00], |cpu| {
       cpu.register_a = 0x00;
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.register_a, 0x01);
     assert_status(&cpu, 0);
@@ -1416,7 +1410,7 @@ mod test {
   fn test_rol_zero_page_zero_with_carry() {
     let cpu = run(vec![0x26, 0x01, 0x00], |cpu| {
       cpu.mem_write(0x0001, 0x00);
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.mem_read(0x0001), 0x01);
     assert_status(&cpu, 0);
@@ -1443,7 +1437,7 @@ mod test {
       cpu.register_a = 0x03;
     });
     assert_eq!(cpu.register_a, 0x01);
-    assert_status(&cpu, Flag::carry());
+    assert_status(&cpu, FLAG_CARRY);
   }
   #[test]
   fn test_ror_zero_page_occur_carry() {
@@ -1451,43 +1445,43 @@ mod test {
       cpu.mem_write(0x0001, 0x03);
     });
     assert_eq!(cpu.mem_read(0x0001), 0x01);
-    assert_status(&cpu, Flag::carry());
+    assert_status(&cpu, FLAG_CARRY);
   }
   #[test]
   fn test_ror_accumulator_with_carry() {
     let cpu = run(vec![0x6a, 0x00], |cpu| {
       cpu.register_a = 0x02;
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.register_a, 0x81);
-    assert_status(&cpu, Flag::negative());
+    assert_status(&cpu, FLAG_NEGATICE);
   }
   #[test]
   fn test_ror_zero_page_with_carry() {
     let cpu = run(vec![0x66, 0x01, 0x00], |cpu| {
       cpu.mem_write(0x0001, 0x02);
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.mem_read(0x0001), 0x81);
-    assert_status(&cpu, Flag::negative());
+    assert_status(&cpu, FLAG_NEGATICE);
   }
   #[test]
   fn test_ror_accumulator_zero_with_carry() {
     let cpu = run(vec![0x6a, 0x00], |cpu| {
       cpu.register_a = 0x00;
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.register_a, 0x80);
-    assert_status(&cpu, Flag::negative());
+    assert_status(&cpu, FLAG_NEGATICE);
   }
   #[test]
   fn test_ror_zero_page_zero_with_carry() {
     let cpu = run(vec![0x66, 0x01, 0x00], |cpu| {
       cpu.mem_write(0x0001, 0x00);
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.mem_read(0x0001), 0x80);
-    assert_status(&cpu, Flag::negative());
+    assert_status(&cpu, FLAG_NEGATICE);
   }
   #[test]
   fn test_bcc() {
@@ -1499,10 +1493,10 @@ mod test {
   #[test]
   fn test_bcc_with_carry() {
     let cpu = run(vec![0x90, 0x02, 0x00, 0x00, 0xe8, 0x00], |cpu| {
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.register_x, 0x00);
-    assert_status(&cpu, Flag::carry());
+    assert_status(&cpu, FLAG_CARRY);
     assert_eq!(cpu.program_counter, 0x8003);
   }
   #[test]
@@ -1525,10 +1519,10 @@ mod test {
   #[test]
   fn test_bcs_with_carry() {
     let cpu = run(vec![0xb0, 0x02, 0x00, 0x00, 0xe8, 0x00], |cpu| {
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.register_x, 0x01);
-    assert_status(&cpu, Flag::carry());
+    assert_status(&cpu, FLAG_CARRY);
     assert_eq!(cpu.program_counter, 0x8006);
   }
   #[test]
@@ -1536,10 +1530,10 @@ mod test {
     let cpu = run(vec![0xb0, 0xfc, 0x00], |cpu| {
       cpu.mem_write(0x7FFF, 0x00);
       cpu.mem_write(0x7FFE, 0xe8);
-      cpu.status = Flag::carry();
+      cpu.status = FLAG_CARRY;
     });
     assert_eq!(cpu.register_x, 0x01);
-    assert_status(&cpu, Flag::carry());
+    assert_status(&cpu, FLAG_CARRY);
     assert_eq!(cpu.program_counter, 0x8000);
   }
   #[test]
@@ -1552,7 +1546,7 @@ mod test {
   #[test]
   fn test_beq_with_zero_flag() {
     let cpu = run(vec![0xf0, 0x02, 0x00, 0x00, 0xe8, 0x00], |cpu| {
-      cpu.status = Flag::zero();
+      cpu.status = FLAG_ZERO;
     });
     assert_eq!(cpu.register_x, 0x01);
     assert_status(&cpu, 0); // ZEROはINXで落ちる
@@ -1568,10 +1562,10 @@ mod test {
   #[test]
   fn test_bne_with_zero_flag() {
     let cpu = run(vec![0xd0, 0x02, 0x00, 0x00, 0xe8, 0x00], |cpu| {
-      cpu.status = Flag::zero();
+      cpu.status = FLAG_ZERO;
     });
     assert_eq!(cpu.register_x, 0x00);
-    assert_status(&cpu, Flag::zero());
+    assert_status(&cpu, FLAG_ZERO);
     assert_eq!(cpu.program_counter, 0x8003);
   }
   #[test]
@@ -1580,7 +1574,7 @@ mod test {
       cpu.register_a = 0x00;
       cpu.mem_write(0x0000, 0x00);
     });
-    assert_status(&cpu, Flag::zero());
+    assert_status(&cpu, FLAG_ZERO);
   }
   #[test]
   fn test_bit_negative_flag() {
@@ -1588,7 +1582,7 @@ mod test {
       cpu.register_a = 0x00;
       cpu.mem_write(0x0000, 0x80);
     });
-    assert_status(&cpu, Flag::zero() | Flag::negative());
+    assert_status(&cpu, FLAG_ZERO | FLAG_NEGATICE);
   }
   #[test]
   fn test_bit_overflow_flag() {
@@ -1596,7 +1590,7 @@ mod test {
       cpu.register_a = 0x40;
       cpu.mem_write(0x0000, 0x40);
     });
-    assert_status(&cpu, Flag::overflow());
+    assert_status(&cpu, FLAG_OVERFLOW);
   }
   #[test]
   fn test_bmi() {
@@ -1608,7 +1602,7 @@ mod test {
   #[test]
   fn test_bmi_with_negative_flag() {
     let cpu = run(vec![0x30, 0x02, 0x00, 0x00, 0xe8, 0x00], |cpu| {
-      cpu.status = Flag::negative();
+      cpu.status = FLAG_NEGATICE;
     });
     assert_eq!(cpu.register_x, 0x01);
     assert_status(&cpu, 0); // INXしたためnegtiveフラグが落ちる
@@ -1624,10 +1618,10 @@ mod test {
   #[test]
   fn test_bpl_with_negative_flag() {
     let cpu = run(vec![0x10, 0x02, 0x00, 0x00, 0xe8, 0x00], |cpu| {
-      cpu.status = Flag::negative();
+      cpu.status = FLAG_NEGATICE;
     });
     assert_eq!(cpu.register_x, 0x00);
-    assert_status(&cpu, Flag::negative());
+    assert_status(&cpu, FLAG_NEGATICE);
     assert_eq!(cpu.program_counter, 0x8003);
   }
   #[test]
@@ -1640,10 +1634,10 @@ mod test {
   #[test]
   fn test_bvc_with_overflow_flag() {
     let cpu = run(vec![0x50, 0x02, 0x00, 0x00, 0xe8, 0x00], |cpu| {
-      cpu.status = Flag::overflow();
+      cpu.status = FLAG_OVERFLOW;
     });
     assert_eq!(cpu.register_x, 0x00);
-    assert_status(&cpu, Flag::overflow());
+    assert_status(&cpu, FLAG_OVERFLOW);
     assert_eq!(cpu.program_counter, 0x8003);
   }
   #[test]
@@ -1656,60 +1650,60 @@ mod test {
   #[test]
   fn test_bvs_with_overflow_flag() {
     let cpu = run(vec![0x70, 0x02, 0x00, 0x00, 0xe8, 0x00], |cpu| {
-      cpu.status = Flag::overflow();
+      cpu.status = FLAG_OVERFLOW;
     });
     assert_eq!(cpu.register_x, 0x01);
-    assert_status(&cpu, Flag::overflow());
+    assert_status(&cpu, FLAG_OVERFLOW);
     assert_eq!(cpu.program_counter, 0x8006);
   }
   #[test]
   fn test_clc() {
     let cpu = run(vec![0x18, 0x00], |cpu| {
-      cpu.status = Flag::overflow() | Flag::carry();
+      cpu.status = FLAG_OVERFLOW | FLAG_CARRY;
     });
-    assert_status(&cpu, Flag::overflow());
+    assert_status(&cpu, FLAG_OVERFLOW);
   }
   #[test]
   fn test_sec() {
     let cpu = run(vec![0x38, 0x00], |cpu| {
-      cpu.status = Flag::overflow();
+      cpu.status = FLAG_OVERFLOW;
     });
-    assert_status(&cpu, Flag::overflow() | Flag::carry());
+    assert_status(&cpu, FLAG_OVERFLOW | FLAG_CARRY);
   }
   #[test]
   fn test_cld() {
     let cpu = run(vec![0xd8, 0x00], |cpu| {
-      cpu.status = Flag::overflow() | Flag::decimal();
+      cpu.status = FLAG_OVERFLOW | FLAG_DECIMAL;
     });
-    assert_status(&cpu, Flag::overflow());
+    assert_status(&cpu, FLAG_OVERFLOW);
   }
   #[test]
   fn test_sed() {
     let cpu = run(vec![0xf8, 0x00], |cpu| {
-      cpu.status = Flag::overflow();
+      cpu.status = FLAG_OVERFLOW;
     });
-    assert_status(&cpu, Flag::overflow() | Flag::decimal());
-    assert_eq!(cpu.status, Flag::overflow() | Flag::decimal());
+    assert_status(&cpu, FLAG_OVERFLOW | FLAG_DECIMAL);
+    assert_eq!(cpu.status, FLAG_OVERFLOW | FLAG_DECIMAL);
   }
   #[test]
   fn test_cli() {
     let cpu = run(vec![0x58, 0x00], |cpu| {
-      cpu.status = Flag::overflow() | Flag::interrupt_disable();
+      cpu.status = FLAG_OVERFLOW | FLAG_INTERRUPT;
     });
-    assert_status(&cpu, Flag::overflow());
+    assert_status(&cpu, FLAG_OVERFLOW);
   }
   #[test]
   fn test_sei() {
     let cpu = run(vec![0x78, 0x00], |cpu| {
-      cpu.status = Flag::overflow();
+      cpu.status = FLAG_OVERFLOW;
     });
-    assert_status(&cpu, Flag::overflow() | Flag::interrupt_disable());
+    assert_status(&cpu, FLAG_OVERFLOW | FLAG_INTERRUPT);
   }
 
   #[test]
   fn test_clv() {
     let cpu = run(vec![0xB8, 0x00], |cpu| {
-      cpu.status = Flag::overflow();
+      cpu.status = FLAG_OVERFLOW;
     });
     assert_status(&cpu, 0);
   }
@@ -1719,35 +1713,35 @@ mod test {
     let cpu = run(vec![0xC9, 0x01, 0x00], |cpu| {
       cpu.register_a = 0x02;
     });
-    assert_status(&cpu, Flag::carry());
+    assert_status(&cpu, FLAG_CARRY);
   }
   #[test]
   fn test_cmp_eq() {
     let cpu = run(vec![0xC9, 0x02, 0x00], |cpu| {
       cpu.register_a = 0x02;
     });
-    assert_status(&cpu, Flag::carry() | Flag::zero());
+    assert_status(&cpu, FLAG_CARRY | FLAG_ZERO);
   }
   #[test]
   fn test_cmp_negative() {
     let cpu = run(vec![0xC9, 0x03, 0x00], |cpu| {
       cpu.register_a = 0x02;
     });
-    assert_status(&cpu, Flag::negative());
+    assert_status(&cpu, FLAG_NEGATICE);
   }
   #[test]
   fn test_cpx() {
     let cpu = run(vec![0xE0, 0x01, 0x00], |cpu| {
       cpu.register_x = 0x02;
     });
-    assert_status(&cpu, Flag::carry());
+    assert_status(&cpu, FLAG_CARRY);
   }
   #[test]
   fn test_cpy() {
     let cpu = run(vec![0xC0, 0x01, 0x00], |cpu| {
       cpu.register_y = 0x02;
     });
-    assert_status(&cpu, Flag::carry());
+    assert_status(&cpu, FLAG_CARRY);
   }
 
   #[test]
@@ -1764,7 +1758,7 @@ mod test {
       cpu.mem_write(0x01, 0x00);
     });
     assert_eq!(cpu.mem_read(0x0001), 0xFF);
-    assert_status(&cpu, Flag::negative());
+    assert_status(&cpu, FLAG_NEGATICE);
   }
   #[test]
   fn test_dex() {
@@ -1780,7 +1774,7 @@ mod test {
       cpu.register_x = 0x00;
     });
     assert_eq!(cpu.register_x, 0xFF);
-    assert_status(&cpu, Flag::negative());
+    assert_status(&cpu, FLAG_NEGATICE);
   }
   #[test]
   fn test_dey() {
@@ -1796,7 +1790,7 @@ mod test {
       cpu.register_y = 0x00;
     });
     assert_eq!(cpu.register_y, 0xFF);
-    assert_status(&cpu, Flag::negative());
+    assert_status(&cpu, FLAG_NEGATICE);
   }
 
   #[test]
@@ -1813,7 +1807,7 @@ mod test {
       cpu.mem_write(0x01, 0x7F);
     });
     assert_eq!(cpu.mem_read(0x0001), 0x80);
-    assert_status(&cpu, Flag::negative());
+    assert_status(&cpu, FLAG_NEGATICE);
   }
   #[test]
   fn test_inx() {
@@ -1829,7 +1823,7 @@ mod test {
       cpu.register_x = 0x7F;
     });
     assert_eq!(cpu.register_x, 0x80);
-    assert_status(&cpu, Flag::negative());
+    assert_status(&cpu, FLAG_NEGATICE);
   }
   #[test]
   fn test_iny() {
@@ -1845,7 +1839,7 @@ mod test {
       cpu.register_y = 0x7F;
     });
     assert_eq!(cpu.register_y, 0x80);
-    assert_status(&cpu, Flag::negative());
+    assert_status(&cpu, FLAG_NEGATICE);
   }
 
   #[test]
@@ -1958,7 +1952,7 @@ mod test {
     assert_eq!(cpu.program_counter, 0x8002);
     assert_eq!(cpu.register_a, 0x00);
     assert_eq!(cpu.stack_pointer, 0xFF);
-    assert_status(&cpu, Flag::zero());
+    assert_status(&cpu, FLAG_ZERO);
   }
 
   #[test]
@@ -1969,34 +1963,34 @@ mod test {
     assert_eq!(cpu.program_counter, 0x8005);
     assert_eq!(cpu.register_a, 0x80);
     assert_eq!(cpu.stack_pointer, 0xFF);
-    assert_status(&cpu, Flag::negative());
+    assert_status(&cpu, FLAG_NEGATICE);
   }
   #[test]
   fn test_php() {
     let cpu = run(vec![0x08, 0x00], |cpu| {
-      cpu.status = Flag::negative() | Flag::overflow();
+      cpu.status = FLAG_NEGATICE | FLAG_OVERFLOW;
     });
     assert_eq!(cpu.program_counter, 0x8002);
     assert_eq!(cpu.stack_pointer, 0xFE);
-    assert_eq!(cpu.mem_read(0x01FF), Flag::negative() | Flag::overflow());
+    assert_eq!(cpu.mem_read(0x01FF), FLAG_NEGATICE | FLAG_OVERFLOW);
   }
   #[test]
   fn test_plp() {
     let cpu = run(vec![0x28, 0x00], |cpu| {
-      cpu.mem_write(0x01FF, Flag::carry() | Flag::zero());
+      cpu.mem_write(0x01FF, FLAG_CARRY | FLAG_ZERO);
       cpu.stack_pointer = 0xFE;
     });
     assert_eq!(cpu.program_counter, 0x8002);
-    assert_status(&cpu, Flag::carry() | Flag::zero());
+    assert_status(&cpu, FLAG_CARRY | FLAG_ZERO);
     assert_eq!(cpu.stack_pointer, 0xFF);
   }
   #[test]
   fn test_plp_and_php() {
     let cpu = run(vec![0x08, 0xa9, 0x80, 0x28, 0x00], |cpu| {
-      cpu.status = Flag::overflow() | Flag::carry();
+      cpu.status = FLAG_OVERFLOW | FLAG_CARRY;
     });
     assert_eq!(cpu.program_counter, 0x8005);
-    assert_status(&cpu, Flag::overflow() | Flag::carry());
+    assert_status(&cpu, FLAG_OVERFLOW | FLAG_CARRY);
     assert_eq!(cpu.stack_pointer, 0xFF);
   }
 
@@ -2039,7 +2033,7 @@ mod test {
   fn test_tsx() {
     let cpu = run(vec![0xba, 0x00], |_| {});
     assert_eq!(cpu.register_x, 0xFF);
-    assert_status(&cpu, Flag::negative());
+    assert_status(&cpu, FLAG_NEGATICE);
   }
   #[test]
   fn test_tsx_no_flag() {
