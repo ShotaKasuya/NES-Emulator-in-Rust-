@@ -11,13 +11,9 @@ pub fn load_rom(path: &str) -> Rom {
   rom
 }
 
-pub mod test {
-  use super::*;
-
-  pub fn snake_rom() -> Rom {
-    load_rom("rom/snake.nes")
-  }
-  pub fn test_rom() -> Rom {
-    load_rom("rom/nestest.nes")
-  }
+pub fn snake_rom() -> Rom {
+  load_rom("rom/snake.nes")
+}
+pub fn test_rom() -> Rom {
+  load_rom("rom/nestest.nes")
 }

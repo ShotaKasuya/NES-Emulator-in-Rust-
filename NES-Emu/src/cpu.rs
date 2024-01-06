@@ -136,7 +136,7 @@ fn address(program_counter: u16, ops: &OpCode, args: &Vec<u8>) -> String {
       return format!("${:<02X},X", args[0]);
     }
     AddressingMode::ZeroPage_Y => {
-      return format!("$${:<02X},Y", args[0]);
+      return format!("${:<02X},Y", args[0]);
     }
     AddressingMode::Absolute_X => {
       return format!("${:<02X}{:<02X},X", args[1], args[0]);
@@ -163,13 +163,33 @@ fn address(program_counter: u16, ops: &OpCode, args: &Vec<u8>) -> String {
 }
 
 fn memory_access(cpu: &CPU, ops: &OpCode, args: &Vec<u8>) -> String {
+  // ジャンプ系はログを変える
   if ops.name.starts_with("J") {
+    if ops.addressing_mode == AddressingMode::Indirect {
+      let hi = args[1] as u16;
+      let lo = args[0] as u16;
+      let addr = hi << 8 | lo;
+      let value = cpu.mem_read_u16(addr);
+      return format!("= {:04X}", value);
+    }
     return format!("");
   }
   match ops.addressing_mode {
     AddressingMode::ZeroPage => {
       let value = cpu.mem_read(args[0] as u16);
       format!("= {:>02X}", value)
+    }
+    AddressingMode::ZeroPage_X => {
+      let pos = cpu.mem_read(cpu.program_counter);
+      let addr = pos.wrapping_add(cpu.register_x) as u16;
+      let value = cpu.mem_read(addr);
+      format!("@ {:<02X} = {:02X}", addr, value)
+    }
+    AddressingMode::ZeroPage_Y => {
+      let pos = cpu.mem_read(cpu.program_counter);
+      let addr = pos.wrapping_add(cpu.register_y) as u16;
+      let value = cpu.mem_read(addr);
+      format!("@ {:<02X} = {:02X}", addr, value)
     }
     AddressingMode::Absolute => {
       let hi = args[1] as u16;
@@ -178,12 +198,24 @@ fn memory_access(cpu: &CPU, ops: &OpCode, args: &Vec<u8>) -> String {
       let value = cpu.mem_read(addr);
       format!("= {:<02X}", value)
     }
+    AddressingMode::Absolute_X => {
+      let base = cpu.mem_read_u16(cpu.program_counter);
+      let addr = base.wrapping_add(cpu.register_x as u16);
+      let value = cpu.mem_read(addr);
+      format!("@ {:<04X} = {:02X}", addr, value)
+    }
+    AddressingMode::Absolute_Y => {
+      let base = cpu.mem_read_u16(cpu.program_counter);
+      let addr = base.wrapping_add(cpu.register_y as u16);
+      let value = cpu.mem_read(addr);
+      format!("@ {:04X} = {:02X}", addr, value)
+    }
     AddressingMode::Indirect_X => {
       let base = args[0];
       let ptr: u8 = (base as u8).wrapping_add(cpu.register_x);
       let addr = cpu.mem_read_u16(ptr as u16);
       let value = cpu.mem_read(addr);
-      format!("= {:>04X} @ {:04X} = {:02X}", ptr, addr, value)
+      format!("@ {:>02X} = {:04X} = {:02X}  ", ptr, addr, value)
     }
     AddressingMode::Indirect_Y => {
       // = 0400 @ 0400 = AA
@@ -940,7 +972,7 @@ mod test {
 
   use super::*;
   use crate::bus::Bus;
-  use crate::cartridge::test::test_rom;
+  use crate::cartridge::test_rom;
 
   #[test]
   fn test_format_trace() {

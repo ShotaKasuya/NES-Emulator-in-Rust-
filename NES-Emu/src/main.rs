@@ -20,7 +20,7 @@ mod rom;
 
 use crate::bus::Bus;
 use crate::bus::Mem;
-use crate::cartridge::test::test_rom;
+use crate::cartridge::test_rom;
 use crate::cpu::trace;
 use crate::cpu::CPU;
 use crate::rom::Rom;
