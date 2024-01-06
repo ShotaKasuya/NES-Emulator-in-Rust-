@@ -415,15 +415,21 @@ impl CPU {
   }
 
   pub fn rti(&mut self, _mode: &AddressingMode) {
+    // 引用 https://bugzmanov.github.io/nes_ebook/chapter_3_3.html
+    // フラグ管理をする
     self.status = self._pop() & !FLAG_BREAK | FLAG_BREAK2;
     self.program_counter = self._pop_u16();
   }
 
   pub fn plp(&mut self, _mode: &AddressingMode) {
+    // 引用 https://bugzmanov.github.io/nes_ebook/chapter_3_3.html
+    // フラグ管理をする
     self.status = self._pop() & !FLAG_BREAK | FLAG_BREAK2;
   }
 
   pub fn php(&mut self, _mode: &AddressingMode) {
+    // 引用 https://bugzmanov.github.io/nes_ebook/chapter_3_3.html
+    // フラグ管理をする
     self._push(self.status | FLAG_BREAK | FLAG_BREAK2);
   }
 
@@ -614,8 +620,8 @@ impl CPU {
     } else {
       self.status & (!FLAG_ZERO)
     };
-    self.status |= value & FLAG_OVERFLOW;
-    self.status |= value & FLAG_NEGATICE;
+    let flags = FLAG_NEGATICE | FLAG_OVERFLOW;
+    self.status = (self.status & !flags) | (value & flags);
   }
 
   // ネガティブフラグが立っていたら分岐
