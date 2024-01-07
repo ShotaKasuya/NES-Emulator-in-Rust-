@@ -156,12 +156,23 @@ OpCode::new(0xBA, "TSX", 1, 2, AddressingMode::Implied),
 OpCode::new(0x8A, "TXA", 1, 2, AddressingMode::Implied),
 OpCode::new(0x9A, "TXS", 1, 2, AddressingMode::Implied),
 OpCode::new(0x98, "TYA", 1, 2, AddressingMode::Implied),
+OpCode::new(0x04, "*NOP", 2, 2, AddressingMode::ZeroPage),
+OpCode::new(0x44, "*NOP", 2, 2, AddressingMode::ZeroPage),
+OpCode::new(0x64, "*NOP", 2, 2, AddressingMode::ZeroPage),
+OpCode::new(0x0C, "*NOP", 3, 2, AddressingMode::Absolute),
+OpCode::new(0x14, "*NOP", 2, 2, AddressingMode::ZeroPage_X),
+OpCode::new(0x34, "*NOP", 2, 2, AddressingMode::ZeroPage_X),
+OpCode::new(0x54, "*NOP", 2, 2, AddressingMode::ZeroPage_X),
+OpCode::new(0x74, "*NOP", 2, 2, AddressingMode::ZeroPage_X),
+OpCode::new(0xD4, "*NOP", 2, 2, AddressingMode::ZeroPage_X),
+OpCode::new(0xF4, "*NOP", 2, 2, AddressingMode::ZeroPage_X),
+OpCode::new(0x1A, "*NOP", 1, 2, AddressingMode::Implied),
 
 ];
 }
 
 pub fn call(cpu: &mut CPU, op: &OpCode) {
-match op.name.as_str() {
+match op.name.replace("*", "").as_str() {
 
 
                     "ADC" => {

@@ -94,7 +94,7 @@ pub fn trace(cpu: &CPU) -> String {
   let status = cpu2str(cpu);
 
   format!(
-    "{:<6}{:<10}{:<32}{}",
+    "{:<6}{:<9}{:<33}{}",
     pc,
     bin,
     vec![asm, memacc].join(" "),
@@ -112,7 +112,13 @@ fn binary(op: u8, args: &Vec<u8>) -> String {
 }
 
 fn disasm(program_counter: u16, ops: &OpCode, args: &Vec<u8>) -> String {
-  format!("{} {}", ops.name, address(program_counter, &ops, args))
+  let prefix = if ops.name.starts_with("*") { "" } else { " " };
+  format!(
+    "{}{} {}",
+    prefix,
+    ops.name,
+    address(program_counter, &ops, args)
+  )
 }
 
 fn address(program_counter: u16, ops: &OpCode, args: &Vec<u8>) -> String {
@@ -154,7 +160,10 @@ fn address(program_counter: u16, ops: &OpCode, args: &Vec<u8>) -> String {
       return format!("(${:<02X}),Y", args[0]);
     }
     AddressingMode::Relative => {
-      return format!("${:<02X}", program_counter + args[0] as u16 + 2);
+      return format!(
+        "${:<02X}",
+        (program_counter as i32 + (args[0] as i8) as i32) as u16 + 2
+      );
     }
     AddressingMode::NoneAddressing => {
       panic!("mode {:?} is not supported", ops.addressing_mode);
@@ -180,14 +189,12 @@ fn memory_access(cpu: &CPU, ops: &OpCode, args: &Vec<u8>) -> String {
       format!("= {:>02X}", value)
     }
     AddressingMode::ZeroPage_X => {
-      let pos = cpu.mem_read(cpu.program_counter);
-      let addr = pos.wrapping_add(cpu.register_x) as u16;
+      let addr = args[0].wrapping_add(cpu.register_x) as u16;
       let value = cpu.mem_read(addr);
       format!("@ {:<02X} = {:02X}", addr, value)
     }
     AddressingMode::ZeroPage_Y => {
-      let pos = cpu.mem_read(cpu.program_counter);
-      let addr = pos.wrapping_add(cpu.register_y) as u16;
+      let addr = args[0].wrapping_add(cpu.register_y) as u16;
       let value = cpu.mem_read(addr);
       format!("@ {:<02X} = {:02X}", addr, value)
     }
@@ -334,6 +341,13 @@ impl CPU {
   // }
 
   pub fn mem_read_u16(&self, pos: u16) -> u16 {
+    if pos == 0xFF || pos == 0x02FF {
+      // メモリアクセス時のCPUバグ
+      // https://www.nesdev.org/obelisk-6502-guide/reference.html#JMP
+      let lo = self.mem_read(pos) as u16;
+      let hi = self.mem_read(pos & 0xFF00) as u16;
+      return (hi << 8) | (lo as u16);
+    }
     let lo = self.mem_read(pos) as u16;
     let hi = self.mem_read(pos + 1) as u16;
     (hi << 8) | (lo as u16)
@@ -392,7 +406,9 @@ impl CPU {
           callback(self);
           call(self, &op);
         }
-        _ => {}
+        _ => {
+          // panic!("no implemention {:02X}", opscode);
+        }
       }
     }
   }
