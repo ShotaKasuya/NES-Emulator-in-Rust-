@@ -5257,4 +5257,4 @@ E53E  85 01     STA $01 = FF                    A:FF X:03 Y:77 P:A5 SP:FB
 E540  24 01     BIT $01 = FF                    A:FF X:03 Y:77 P:A5 SP:FB
 E542  38        SEC                             A:FF X:03 Y:77 P:E5 SP:FB
 E543  A9 00     LDA #$00                        A:FF X:03 Y:77 P:E5 SP:FB
-E546  40        RTI                             A:00 X:03 Y:77 P:67 SP:FB
+E545  A3 40    *LAX ($40,X) @ 43 = 0580 = 55    A:00 X:03 Y:77 P:67 SP:FB

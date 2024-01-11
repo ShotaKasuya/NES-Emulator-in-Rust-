@@ -11,9 +11,11 @@ pub fn load_rom(path: &str) -> Rom {
   rom
 }
 
+#[allow(dead_code)]
 pub fn snake_rom() -> Rom {
   load_rom("rom/snake.nes")
 }
+#[allow(dead_code)]
 pub fn test_rom() -> Rom {
   load_rom("rom/nestest.nes")
 }

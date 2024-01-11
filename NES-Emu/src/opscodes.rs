@@ -178,7 +178,9 @@ OpCode::new(0x5A, "*NOP", 1, 2, AddressingMode::Implied),
 OpCode::new(0x7A, "*NOP", 1, 2, AddressingMode::Implied),
 OpCode::new(0xDA, "*NOP", 1, 2, AddressingMode::Implied),
 OpCode::new(0xFA, "*NOP", 1, 2, AddressingMode::Implied),
+OpCode::new(0xEA, "*NOP", 1, 2, AddressingMode::Implied),
 OpCode::new(0x80, "*NOP", 2, 2, AddressingMode::Immediate),
+OpCode::new(0xA3, "*LAX", 2, 2, AddressingMode::Indirect_X),
 
 ];
 }
@@ -464,6 +466,11 @@ match op.name.replace("*", "").as_str() {
                     
                     "TYA" => {
                         cpu.tya(&op.addressing_mode);
+                        cpu.program_counter += op.bytes - 1;
+                    }
+                    
+                    "*LAX" => {
+                        cpu.lax(&op.addressing_mode);
                         cpu.program_counter += op.bytes - 1;
                     }
                     

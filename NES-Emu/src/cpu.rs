@@ -421,6 +421,12 @@ impl CPU {
     }
     return None;
   }
+
+  pub fn lax(&mut self, mode: &AddressingMode) {
+    self.lda(mode);
+    self.tax(mode);
+  }
+
   pub fn txs(&mut self, _mode: &AddressingMode) {
     self.stack_pointer = self.register_x;
   }
