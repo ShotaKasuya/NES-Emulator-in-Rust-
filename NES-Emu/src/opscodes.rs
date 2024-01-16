@@ -191,6 +191,14 @@ OpCode::new(0x83, "*SAX", 2, 2, AddressingMode::Indirect_X),
 OpCode::new(0x87, "*SAX", 2, 2, AddressingMode::ZeroPage),
 OpCode::new(0x97, "*SAX", 2, 2, AddressingMode::ZeroPage_Y),
 OpCode::new(0x8F, "*SAX", 3, 2, AddressingMode::Absolute),
+OpCode::new(0xCF, "*DCP", 3, 2, AddressingMode::Absolute),
+OpCode::new(0xDF, "*DCP", 3, 2, AddressingMode::Absolute_X),
+OpCode::new(0xDB, "*DCP", 3, 2, AddressingMode::Absolute_Y),
+OpCode::new(0xBF, "*DCP", 3, 2, AddressingMode::Absolute_Y),
+OpCode::new(0xC7, "*DCP", 2, 2, AddressingMode::ZeroPage),
+OpCode::new(0xD7, "*DCP", 2, 2, AddressingMode::ZeroPage_X),
+OpCode::new(0xC3, "*DCP", 2, 2, AddressingMode::Indirect_X),
+OpCode::new(0xD3, "*DCP", 2, 2, AddressingMode::Indirect_Y),
 
 ];
 }
@@ -486,6 +494,11 @@ match op.name.replace("*", "").as_str() {
                     
                     "SAX" => {
                         cpu.sax(&op.addressing_mode);
+                        cpu.program_counter += op.bytes - 1;
+                    }
+                    
+                    "DCP" => {
+                        cpu.dcp(&op.addressing_mode);
                         cpu.program_counter += op.bytes - 1;
                     }
                     

@@ -61,7 +61,16 @@ unofficial_ops = {
         "ZeroPage":["0x87"],
         "ZeroPage_Y":["0x97"],
         "Absolute":["0x8F"],
-    }
+    },
+    "*DCP":{
+        "Absolute":[ "0xCF"],
+        "Absolute_X":[ "0xDF"],
+        "Absolute_Y":["0xDB","0xBF"],
+        "ZeroPage":[  "0xC7"],
+        "ZeroPage_X":[ "0xD7"],
+        "Indirect_X":["0xC3"],
+        "Indirect_Y":["0xD3"],
+    },
 }
 
 
@@ -74,9 +83,7 @@ def append_unofficial_opscodes():
     global unofficial_ops
     global opscodes
     ops = [ opcode[0] for opcode in opscodes]
-    print(ops)
     for u_ops in unofficial_ops.keys():
-        print(u_ops.replace("*", ""))
         if not u_ops.replace("*", "") in ops:
             opscodes.append([u_ops, "", "", "", ""])
 
