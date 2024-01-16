@@ -1,9 +1,8 @@
-
 use crate::cpu::AddressingMode;
 use crate::cpu::OpCode;
 use crate::cpu::CPU;
 
-lazy_static!{
+lazy_static! {
 pub static ref CPU_OPS_CODES: Vec<OpCode> = vec![
 OpCode::new(0x69, "ADC", 2, 2, AddressingMode::Immediate),
 OpCode::new(0x65, "ADC", 2, 3, AddressingMode::ZeroPage),
@@ -199,311 +198,333 @@ OpCode::new(0xC7, "*DCP", 2, 2, AddressingMode::ZeroPage),
 OpCode::new(0xD7, "*DCP", 2, 2, AddressingMode::ZeroPage_X),
 OpCode::new(0xC3, "*DCP", 2, 2, AddressingMode::Indirect_X),
 OpCode::new(0xD3, "*DCP", 2, 2, AddressingMode::Indirect_Y),
+OpCode::new(0xE7, "*ISB", 2, 2, AddressingMode::ZeroPage),
+OpCode::new(0xF7, "*ISB", 2, 2, AddressingMode::ZeroPage_X),
+OpCode::new(0xEF, "*ISB", 3, 2, AddressingMode::Absolute),
+OpCode::new(0xFF, "*ISB", 3, 2, AddressingMode::Absolute_X),
+OpCode::new(0xFB, "*ISB", 3, 2, AddressingMode::Absolute_Y),
+OpCode::new(0xE3, "*ISB", 2, 2, AddressingMode::Indirect_X),
+OpCode::new(0xF3, "*ISB", 2, 2, AddressingMode::Indirect_Y),
+OpCode::new(0x03, "*SLO", 2, 2, AddressingMode::ZeroPage),
+OpCode::new(0x17, "*SLO", 2, 2, AddressingMode::ZeroPage_X),
+OpCode::new(0x0F, "*SLO", 3, 2, AddressingMode::Absolute),
+OpCode::new(0x1F, "*SLO", 3, 2, AddressingMode::Absolute_X),
+OpCode::new(0x1B, "*SLO", 3, 2, AddressingMode::Absolute_Y),
+OpCode::new(0x03, "*SLO", 2, 2, AddressingMode::Indirect_X),
+OpCode::new(0x13, "*SLO", 2, 2, AddressingMode::Indirect_Y),
 
 ];
 }
 
 pub fn call(cpu: &mut CPU, op: &OpCode) {
-match op.name.replace("*", "").as_str() {
+  match op.name.replace("*", "").as_str() {
+    "ADC" => {
+      cpu.adc(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
 
+    "AND" => {
+      cpu.and(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
 
-                    "ADC" => {
-                        cpu.adc(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "AND" => {
-                        cpu.and(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "ASL" => {
-                        cpu.asl(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "BCC" => {
-                        cpu.bcc(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "BCS" => {
-                        cpu.bcs(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "BEQ" => {
-                        cpu.beq(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "BIT" => {
-                        cpu.bit(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "BMI" => {
-                        cpu.bmi(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "BNE" => {
-                        cpu.bne(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "BPL" => {
-                        cpu.bpl(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "BRK" => {
-                        cpu.brk(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "BVC" => {
-                        cpu.bvc(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "BVS" => {
-                        cpu.bvs(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "CLC" => {
-                        cpu.clc(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "CLD" => {
-                        cpu.cld(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "CLI" => {
-                        cpu.cli(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "CLV" => {
-                        cpu.clv(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "CMP" => {
-                        cpu.cmp(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "CPX" => {
-                        cpu.cpx(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "CPY" => {
-                        cpu.cpy(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "DEC" => {
-                        cpu.dec(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "DEX" => {
-                        cpu.dex(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "DEY" => {
-                        cpu.dey(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "EOR" => {
-                        cpu.eor(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "INC" => {
-                        cpu.inc(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "INX" => {
-                        cpu.inx(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "INY" => {
-                        cpu.iny(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "JMP" => {
-                        cpu.jmp(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "JSR" => {
-                        cpu.jsr(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "LDA" => {
-                        cpu.lda(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "LDX" => {
-                        cpu.ldx(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "LDY" => {
-                        cpu.ldy(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "LSR" => {
-                        cpu.lsr(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "NOP" => {
-                        cpu.nop(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "ORA" => {
-                        cpu.ora(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "PHA" => {
-                        cpu.pha(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "PHP" => {
-                        cpu.php(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "PLA" => {
-                        cpu.pla(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "PLP" => {
-                        cpu.plp(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "ROL" => {
-                        cpu.rol(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "ROR" => {
-                        cpu.ror(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "RTI" => {
-                        cpu.rti(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "RTS" => {
-                        cpu.rts(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "SBC" => {
-                        cpu.sbc(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "SEC" => {
-                        cpu.sec(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "SED" => {
-                        cpu.sed(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "SEI" => {
-                        cpu.sei(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "STA" => {
-                        cpu.sta(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "STX" => {
-                        cpu.stx(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "STY" => {
-                        cpu.sty(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "TAX" => {
-                        cpu.tax(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "TAY" => {
-                        cpu.tay(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "TSX" => {
-                        cpu.tsx(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "TXA" => {
-                        cpu.txa(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "TXS" => {
-                        cpu.txs(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "TYA" => {
-                        cpu.tya(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "LAX" => {
-                        cpu.lax(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "SAX" => {
-                        cpu.sax(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
-                    "DCP" => {
-                        cpu.dcp(&op.addressing_mode);
-                        cpu.program_counter += op.bytes - 1;
-                    }
-                    
+    "ASL" => {
+      cpu.asl(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "BCC" => {
+      cpu.bcc(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "BCS" => {
+      cpu.bcs(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "BEQ" => {
+      cpu.beq(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "BIT" => {
+      cpu.bit(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "BMI" => {
+      cpu.bmi(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "BNE" => {
+      cpu.bne(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "BPL" => {
+      cpu.bpl(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "BRK" => {
+      cpu.brk(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "BVC" => {
+      cpu.bvc(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "BVS" => {
+      cpu.bvs(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "CLC" => {
+      cpu.clc(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "CLD" => {
+      cpu.cld(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "CLI" => {
+      cpu.cli(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "CLV" => {
+      cpu.clv(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "CMP" => {
+      cpu.cmp(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "CPX" => {
+      cpu.cpx(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "CPY" => {
+      cpu.cpy(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "DEC" => {
+      cpu.dec(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "DEX" => {
+      cpu.dex(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "DEY" => {
+      cpu.dey(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "EOR" => {
+      cpu.eor(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "INC" => {
+      cpu.inc(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "INX" => {
+      cpu.inx(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "INY" => {
+      cpu.iny(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "JMP" => {
+      cpu.jmp(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "JSR" => {
+      cpu.jsr(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "LDA" => {
+      cpu.lda(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "LDX" => {
+      cpu.ldx(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "LDY" => {
+      cpu.ldy(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "LSR" => {
+      cpu.lsr(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "NOP" => {
+      cpu.nop(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "ORA" => {
+      cpu.ora(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "PHA" => {
+      cpu.pha(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "PHP" => {
+      cpu.php(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "PLA" => {
+      cpu.pla(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "PLP" => {
+      cpu.plp(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "ROL" => {
+      cpu.rol(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "ROR" => {
+      cpu.ror(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "RTI" => {
+      cpu.rti(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "RTS" => {
+      cpu.rts(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "SBC" => {
+      cpu.sbc(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "SEC" => {
+      cpu.sec(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "SED" => {
+      cpu.sed(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "SEI" => {
+      cpu.sei(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "STA" => {
+      cpu.sta(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "STX" => {
+      cpu.stx(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "STY" => {
+      cpu.sty(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "TAX" => {
+      cpu.tax(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "TAY" => {
+      cpu.tay(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "TSX" => {
+      cpu.tsx(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "TXA" => {
+      cpu.txa(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "TXS" => {
+      cpu.txs(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "TYA" => {
+      cpu.tya(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "LAX" => {
+      cpu.lax(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "SAX" => {
+      cpu.sax(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "DCP" => {
+      cpu.dcp(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "ISB" => {
+      cpu.isb(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
+    "SLO" => {
+      cpu.slo(&op.addressing_mode);
+      cpu.program_counter += op.bytes - 1;
+    }
+
     _ => {
-        todo!()
+      todo!()
     }
   }
 }

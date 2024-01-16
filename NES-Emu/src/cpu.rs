@@ -422,6 +422,17 @@ impl CPU {
     return None;
   }
 
+  pub fn slo(&mut self, mode: &AddressingMode) {
+    self.asl(mode);
+    self.ora(mode);
+  }
+
+  pub fn isb(&mut self, mode: &AddressingMode) {
+    // = ISC
+    self.inc(mode);
+    self.sbc(mode);
+  }
+
   pub fn dcp(&mut self, mode: &AddressingMode) {
     self.dec(mode);
     self.cmp(mode);

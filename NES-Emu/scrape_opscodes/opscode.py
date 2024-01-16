@@ -71,6 +71,24 @@ unofficial_ops = {
         "Indirect_X":["0xC3"],
         "Indirect_Y":["0xD3"],
     },
+    "*ISB" :{
+        "ZeroPage":[  "0xE7"],
+        "ZeroPage_X":[ "0xF7"],
+        "Absolute":[ "0xEF"],
+        "Absolute_X":[ "0xFF"],
+        "Absolute_Y":["0xFB"],
+        "Indirect_X":["0xE3"],
+        "Indirect_Y":["0xF3"],
+    },
+    "*SLO":{
+        "ZeroPage":[  "0x03"],
+        "ZeroPage_X":[ "0x17"],
+        "Absolute":[ "0x0F"],
+        "Absolute_X":[ "0x1F"],
+        "Absolute_Y":["0x1B"],
+        "Indirect_X":["0x03"],
+        "Indirect_Y":["0x13"],
+    }
 }
 
 
