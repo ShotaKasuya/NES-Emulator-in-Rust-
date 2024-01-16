@@ -64,10 +64,21 @@ unofficial_ops = {
     }
 }
 
+
 opscodes = []
 with open("data.csv") as f:
     reader = csv.reader(f)
     opscodes = [row for row in reader]
+
+def append_unofficial_opscodes():
+    global unofficial_ops
+    global opscodes
+    ops = [ opcode[0] for opcode in opscodes]
+    print(ops)
+    for u_ops in unofficial_ops.keys():
+        print(u_ops.replace("*", ""))
+        if not u_ops.replace("*", "") in ops:
+            opscodes.append([u_ops, "", "", "", ""])
 
 with open("../src/opscodes.rs", "w") as f:
     f.write(header)
@@ -80,8 +91,8 @@ with open("../src/opscodes.rs", "w") as f:
                 f.write(f'OpCode::new({opcode}, \"{ops}\", {bytes_table[addr]}, {cycles}, AddressingMode::{addr}),\n')
     f.write(mider)
     before = ""
-    opscodes.append(["*LAX", "Indirect_X", "0xA3", "2", "2"])
-    opscodes.append(["*SAX", "Indirect_X", "0x83", "2", "2"])
+
+    append_unofficial_opscodes()
     for row in opscodes:
         if row[0] != before:
             f.write(f"""
