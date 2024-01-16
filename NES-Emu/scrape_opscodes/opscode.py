@@ -28,10 +28,13 @@ bytes_table = {
     "ZeroPage":2,
     "Absolute":3,
     "Absolute_X":3,
+    "Absolute_Y":3,
     "ZeroPage_X":2,
+    "ZeroPage_Y":2,
     "Implied":1,
     "Immediate":2,
     "Indirect_X":2,
+    "Indirect_Y":2,
 }
 unofficial_ops = {
     "*NOP" :{
@@ -42,8 +45,22 @@ unofficial_ops = {
         "Implied":[ "0x1A", "0x3A", "0x5A", "0x7A", "0xDA", "0xFA", "0xEA"],
         "Immediate":["0x80"]
     },
+    "*SBC":{
+        "Immediate":["0xEB"],
+    },
     "*LAX":{
-        "Indirect_X":["0xA3"]
+        "Indirect_X":["0xA3"],
+        "Indirect_Y":["0xB3"],
+        "ZeroPage":["0xA7"],
+        "ZeroPage_Y":["0xB7"],
+        "Absolute":["0xAF"],
+        "Absolute_Y":["0xBF"],
+    },
+    "*SAX":{
+        "Indirect_X":["0x83"],
+        "ZeroPage":["0x87"],
+        "ZeroPage_Y":["0x97"],
+        "Absolute":["0x8F"],
     }
 }
 
@@ -64,10 +81,11 @@ with open("../src/opscodes.rs", "w") as f:
     f.write(mider)
     before = ""
     opscodes.append(["*LAX", "Indirect_X", "0xA3", "2", "2"])
+    opscodes.append(["*SAX", "Indirect_X", "0x83", "2", "2"])
     for row in opscodes:
         if row[0] != before:
             f.write(f"""
-                    \"{row[0]}\" => {{
+                    \"{row[0].replace("*", "")}\" => {{
                         cpu.{row[0].replace("*", "").lower()}(&op.addressing_mode);
                         cpu.program_counter += op.bytes - 1;
                     }}

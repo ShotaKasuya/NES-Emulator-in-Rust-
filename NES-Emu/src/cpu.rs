@@ -23,7 +23,7 @@ pub enum AddressingMode {
   NoneAddressing,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct OpCode {
   pub code: u8,
   pub name: String,
@@ -420,6 +420,11 @@ impl CPU {
       }
     }
     return None;
+  }
+
+  pub fn sax(&mut self, mode: &AddressingMode) {
+    let addr = self.get_operand_address(mode);
+    self.mem_write(addr, self.register_a & self.register_x);
   }
 
   pub fn lax(&mut self, mode: &AddressingMode) {
