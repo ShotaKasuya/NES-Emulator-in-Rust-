@@ -3,63 +3,120 @@ import requests
 from bs4 import BeautifulSoup
 from pydantic import BaseModel
 import pandas as pd
+import re
 
+bytes_table = {
+    "Absolute":3,
+    "Absolute_X":3,
+    "Absolute_Y":3,
+    "ZeroPage":2,
+    "ZeroPage_X":2,
+    "ZeroPage_Y":2,
+    "Implied":1,
+    "Immediate":2,
+    "Indirect_X":2,
+    "Indirect_Y":2,
+}
 
-url = "https://www.nesdev.org/obelisk-6502-guide/reference.html#INX"
+addressing_modes = {
+    "Accumulator"   :"Accumulator",
+    "Absolute"      :"Absolute",
+    "Absolute,X"    :"Absolute_X",
+    "Absolute,Y"    :"Absolute_Y",
+    "ZeroPage"      :"ZeroPage",
+    "ZeroPage,X"    :"ZeroPage_X",
+    "ZeroPage,Y"    :"ZeroPage_Y",
+    "Immediate"     :"Immediate",
+    "Relative"      :"Relative",
+    "Implied"       :"Implied",
+    "Indirect"      :"Indirect",
+    "(Indirect,X)"  :"Indirect_X",
+    "(Indirect),Y"  :"Indirect_Y",
+}
 
+class AddressingMode(BaseModel):
+    code: str
+    bytes: int
+    cycles: int
+    addressingmode: str
 
-dfs = pd.read_html(url)
-print(len(dfs))
-# print(dfs)
+class OpCode(BaseModel):
+    name: str
+    addr: "list[AddressingMode]"
 
-# いらない表を削除
-del dfs[0]
-del dfs[::2]
+def request_string(url: str) -> str:
+    r = requests.get(url=url)
+    soup = BeautifulSoup(r.content, "html.parser")
+    return str(soup)
 
-# いらない行を削除
-for i in range(len(dfs)):
-    dfs[i] = dfs[i].drop(dfs[i].index[[0]])
+def official_opsname_list(url: str) -> "list[str]":
+    _page = request_string(url=url)
+    lxml_data = html.fromstring(str(_page))
+    opsHeaders = lxml_data.xpath("//h3/a")
+    opsNames = [ opsHead.attrib.get('name') for opsHead in opsHeaders ]
+    return opsNames
 
-print(dfs)
+def get_address_mode_infos(url: str) -> "list[DataFrame]":
+    tables = pd.read_html(url)
+    del tables[0]
+    del tables[::2]
 
-# # いらない列を削除
-# # for i in range(len(dfs)):
-# #     dfs[i] = dfs[i].drop(columns=dfs[i].columns[[0]])
+    for i in range(len(tables)):
+        tables[i] = tables[i].drop(tables[i].index[[0]])
+    return tables
 
-# # CSV用に結合
-# df = pd.concat([dfs[0], dfs[1]])
-# for i in range(2,len(dfs)):
-#     df = pd.concat([df, dfs[i]])
+def get_official_opcode_list(url: str) -> "list[OpCode]":
+    opsNames = official_opsname_list(url=url)
+    addr_infos = get_address_mode_infos(url=url)
+    opCodes : "list[OpCode]" = []
+    for table, opsname in zip(addr_infos, opsNames):
+        opcode = OpCode(
+            name=opsname,
+            addr=[]
+        )
+        for row in table.itertuples():
+            opcode.addr.append(AddressingMode(
+                code = row[2],
+                bytes = int(row[3]),
+                cycles = int(re.sub("\(.+\)", "", row[4])),
+                addressingmode = addressing_modes[row[1].replace(" ", "")]
+            ))
+        opCodes.append(opcode)
+    return opCodes
 
-# df.to_csv("data.csv", index=False, header=False)
-# dfs = pd.read_html(url)
-# print(len(dfs))
-# print(dfs[2])
+def unofficial_opsname_list(url: str) -> "list[str]":
+    strs : "list[str]" = []
+    res = request_string(url=url)
+    lines = res.split("\n")
+    for i, line in enumerate(lines):
+        if line == "=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D":
+            strs.append(lines[i-1][5:8])
+    return strs
 
-# # いらない表を削除
-# del dfs[0]
-# del dfs[::2]
-
-# # いらない行を削除
-# for i in range(len(dfs)):
-#     dfs[i] = dfs[i].drop(dfs[i].index[[0]])
-
-# for i in range(len(opsNames)):
-#     dfs[i].insert(0, -1, opsNames[i])
-
-# print(dfs[0])
-# # CSV用に結合
-# df = pd.concat([dfs[0], dfs[1]])
-# for i in range(2,len(dfs)):
-#     df = pd.concat([df, dfs[i]])
-
-# df.to_csv("data.csv", index=False, header=False)
-
-# # データ加工
-# # 1. $ -> 0x
-# # 2. ,(\d) \((.+)\)\n -> ,$1 /* ($2) */\n
-# # 3. Zero[ ]+Page -> ZeroPage
-# # 4. ZeroPage,([XY]) -> ZeroPage_$1
-# # 5. "(.+),([XY])" -> $1_$2
-# # 6. (Indirect,X) -> Indirect_X
-# # 7. (Indirect)_Y -> Indirect_Y
+def get_unofficial_opcode_list(url: str) -> "list[OpCode]":
+    opsnames = unofficial_opsname_list(url=url)
+    res = request_string(url=url)
+    opCodes : "list[OpCode]" = []
+    i = 0
+    is_reading = False
+    for line in res.split("\n"):
+        split_line = line.split("|")
+        if len(split_line) != 5:
+            is_reading = False
+            continue
+        if split_line[0].__contains__("Addressing") or split_line[0].__contains__("--"):
+            is_reading = False
+            continue
+        
+        if not is_reading:
+            is_reading = True
+            opCodes.append(OpCode(name=opsnames[i], addr=[]))
+            i += 1
+            
+        opCodes[i-1].addr.append(AddressingMode(
+            code=split_line[2],
+            bytes=int(split_line[3]),
+            cycles=int(split_line[4].replace("-", "0").replace("*", "")),
+            addressingmode=addressing_modes[split_line[0].replace(" ", "")]
+        ))
+    return opCodes
