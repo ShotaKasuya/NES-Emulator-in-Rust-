@@ -1,8 +1,3 @@
-from lxml import html
-import requests
-from bs4 import BeautifulSoup
-from pydantic import BaseModel
-import pandas as pd
 import scrape_opscode
 
 def main():
