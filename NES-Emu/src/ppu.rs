@@ -8,12 +8,19 @@ pub struct NesPPU {
   pub oam_data: [u8; 256],
 
   pub mirroring: Mirroring,
-  addr: AddrResister,
-  pub ctrl: ControlRegister,
+  addr: AddrResister,        // 0x2006 (0x2007)
+  pub ctrl: ControlRegister, // 0x2000
   internal_data_buf: u8,
 
+  // TODO mask 0x2001
+  // TODO status 0x2002
+  status: StatusRegister,
+  // TODO OAM Address 0x2003, 0x2004
+  // TODO scroll 0x2005
+  // TODO OAM DMA 0x4015
   scanline: u16,
   cycles: usize,
+  pub nmi_interrupt: Option<i32>,
 }
 
 impl NesPPU {
@@ -26,9 +33,11 @@ impl NesPPU {
       palette_table: [0; 32],
       ctrl: ControlRegister::new(),
       addr: AddrResister::new(),
+      status: StatusRegister::new(),
       internal_data_buf: 0,
       scanline: 0,
       cycles: 0,
+      nmi_interrupt: None,
     }
   }
 
@@ -36,8 +45,19 @@ impl NesPPU {
     self.addr.update(value);
   }
 
+  pub fn write_to_data(&mut self, value: u8) {
+    let addr = self.addr.get();
+    self.increment_vram_addr();
+    self.vram[self.mirror_vram_addr(addr) as usize] = value;
+  }
+
   pub fn write_to_ctrl(&mut self, value: u8) {
+    let before_nmi_status = self.ctrl.generate_vblank_nmi();
+
     self.ctrl.update(value);
+    if !before_nmi_status && self.ctrl.generate_vblank_nmi() && self.status.is_in_vblank() {
+      self.nmi_interrupt = Some(1);
+    }
   }
 
   fn increment_vram_addr(&mut self) {
@@ -183,5 +203,34 @@ impl ControlRegister {
   pub fn update(&mut self, data: u8) {
     // todo
     *self.0.bits_mut() = data;
+  }
+
+  pub fn generate_vblank_nmi(&mut self) -> bool {
+    let last_status = self.contains(ControlRegister::GENERATE_NMI);
+    self.set(ControlRegister::GENERATE_NMI, true);
+    last_status
+  }
+}
+
+bitflags! {
+  pub struct StatusRegister:u8{
+    const PPU_OPEN_BUS        =0b0001_1111;
+    const SPRITE_OVERFLOW     =0b0010_0000;
+    const SPRITE_ZERO_HIT     =0b0100_0000;
+    const VBLANK_HAS_STARTED  =0b1000_0000;
+  }
+}
+impl StatusRegister {
+  pub fn new() -> Self {
+    StatusRegister::from_bits_truncate(0b0000_0000)
+  }
+  pub fn is_in_vblank(&self) -> bool {
+    self.contains(StatusRegister::VBLANK_HAS_STARTED)
+  }
+  pub fn set_vblank_status(&mut self, value: bool) {
+    self.set(StatusRegister::VBLANK_HAS_STARTED, value);
+  }
+  pub fn reset_vblank_status(&mut self) {
+    self.set_vblank_status(false);
   }
 }

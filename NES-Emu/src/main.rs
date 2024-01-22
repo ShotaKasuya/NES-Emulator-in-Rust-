@@ -1,13 +1,18 @@
 extern crate sdl2;
 
+use crate::bus::Bus;
+use crate::bus::Mem;
+use crate::cpu::trace;
+use crate::cpu::CPU;
+use cartridge::alter_ego_rom;
+use frame::show_tile;
 use rand::Rng;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
+use sdl2::sys::KeyCode;
 use sdl2::EventPump;
-use std::fs::File;
-use std::io::Read;
 
 #[macro_use]
 extern crate lazy_static;
@@ -15,18 +20,19 @@ extern crate lazy_static;
 mod bus;
 mod cartridge;
 mod cpu;
+mod frame;
 mod opscodes;
+mod palette;
 mod ppu;
 mod rom;
 
-use crate::bus::Bus;
-use crate::bus::Mem;
-use crate::cartridge::test_rom;
-use crate::cpu::trace;
-use crate::cpu::CPU;
-use crate::rom::Rom;
-
 fn main() {
+  // todo!("ファイル読み込み");
+  let rom = alter_ego_rom();
+  // let bus = Bus::new(rom);
+  // let mut cpu = CPU::new(bus);
+  // cpu.reset();
+
   // init sdl2
   let sdl_context = sdl2::init().unwrap();
   let video_subsystem = sdl_context.video().unwrap();
@@ -45,15 +51,25 @@ fn main() {
     .create_texture_target(PixelFormatEnum::RGB24, 32, 32)
     .unwrap();
 
-  // todo!("ファイル読み込み");
-  let bus = Bus::new(test_rom());
-  let mut cpu = CPU::new(bus);
+  // put CHR_ROM
+  let tile_frame = show_tile(&rom.chr_rom, 1, 0);
+  texture.update(None, &tile_frame.data, 256 * 3).unwrap();
+  canvas.copy(&texture, None, None).unwrap();
+  canvas.present();
 
-  // cpu.load(game_code);
-  // 蛇ゲームの場合はプログラムの配置が0x0600からのよう
-  // cpu.mem_write_u16(0xFFFC, 0x0600); // プログラムカウンタのセット
-  cpu.reset();
-
+  loop {
+    for event in event_pump.poll_iter() {
+      match event {
+        Event::Quit { .. }
+        | Event::KeyDown {
+          keycode: Some(Keycode::Escape),
+          ..
+        } => std::process::exit(0),
+        _ => { /* do nothing */ }
+      }
+    }
+  }
+  /*
   let mut screen_state = [0 as u8; 32 * 3 * 32];
   let mut rng = rand::thread_rng();
   cpu.run_with_callback(move |cpu| {
@@ -70,6 +86,7 @@ fn main() {
 
     ::std::thread::sleep(std::time::Duration::new(0, 70_000));
   })
+  */
 }
 
 fn handle_user_input(cpu: &mut CPU, event_pump: &mut EventPump) {
@@ -123,7 +140,7 @@ fn color(byte: u8) -> Color {
   }
 }
 
-fn read_screen_state(cpu: &CPU, frame: &mut [u8; 32 * 3 * 32]) -> bool {
+fn read_screen_state(cpu: &mut CPU, frame: &mut [u8; 32 * 3 * 32]) -> bool {
   let mut frame_idx = 0;
   let mut update = false;
   for i in 0x0200..0x600 {

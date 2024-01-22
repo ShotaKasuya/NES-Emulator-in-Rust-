@@ -30,6 +30,10 @@ impl Bus {
     self.cycles += cycle as usize;
     self.ppu.tick(cycle * 3);
   }
+
+  pub fn poll_nmi_status(&self) -> Option<i32> {
+    self.ppu.nmi_interrupt
+  }
 }
 
 const RAM: u16 = 0x0000;
@@ -37,27 +41,33 @@ const RAM_MIRRORS_END: u16 = 0x1FFF;
 const PPU_REGISTERS: u16 = 0x2000;
 const PPU_REGISTERS_MIRRORS_END: u16 = 0x3FFF;
 
+const PRG_ROM: u16 = 0x8000;
+const PRG_ROM_END: u16 = 0xFFFF;
+
 pub trait Mem {
-  fn mem_read(&self, addr: u16) -> u8;
+  fn mem_read(&mut self, addr: u16) -> u8;
   fn mem_write(&mut self, addr: u16, data: u8);
 }
 
 impl Mem for Bus {
-  fn mem_read(&self, addr: u16) -> u8 {
+  fn mem_read(&mut self, addr: u16) -> u8 {
     match addr {
       RAM..=RAM_MIRRORS_END => {
+        //                            0x07FF
         let mirror_down_addr = addr & 0b0000_0111_1111_1111;
         self.cpu_vram[mirror_down_addr as usize]
       }
       0x2000 | 0x2001 | 0x2003 | 0x2005 | 0x2006 | 0x4014 => {
         panic!("Attempt to read from write-only PPU address {:X}", addr);
       }
+      // TODO 0x2002 => status
+      // TODO 0x2004 => OAM Data
       0x2007 => self.ppu.read_data(),
       0x2008..=PPU_REGISTERS_MIRRORS_END => {
         let mirror_down_addr = addr & 0b0010_0000_0000_0111;
         self.mem_read(mirror_down_addr)
       }
-      0x8000..=0xFFFF => self.read_prg_rom(addr),
+      PRG_ROM..=PRG_ROM_END => self.read_prg_rom(addr),
       _ => {
         println!("Ignoreing mem access at {}", addr);
         0
@@ -72,13 +82,19 @@ impl Mem for Bus {
         self.cpu_vram[mirror_down_addr as usize] = data;
       }
       0x2000 => self.ppu.write_to_ctrl(data),
+      // TODO 0x2001 => Mask
+      // TODO 0x2002 => status
+      // TODO 0x2003 => OAM Address
+      // TODO 0x2004 => OAM Data
+      // TODO 0x2005 => scroll
       0x2006 => self.ppu.write_to_ppu_addr(data),
       0x2007 => self.ppu.write_to_data(data),
       0x2008..=PPU_REGISTERS_MIRRORS_END => {
         let mirror_down_addr = addr & 0b0010_0000_0000_0111;
         self.mem_write(mirror_down_addr, data);
       }
-      0x8000..=0xFFFF => {
+      // TODO 0x4014 => OAM DMA
+      PRG_ROM..=PRG_ROM_END => {
         panic!("Attempt to write to Cartridge ROM space")
       }
       _ => {

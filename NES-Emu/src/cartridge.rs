@@ -19,3 +19,7 @@ pub fn snake_rom() -> Rom {
 pub fn test_rom() -> Rom {
   load_rom("rom/nestest.nes")
 }
+#[allow(dead_code)]
+pub fn alter_ego_rom() -> Rom {
+  load_rom("rom/Alter_Ego.nes")
+}

@@ -28,7 +28,7 @@ pub struct OpCode {
   pub code: u8,
   pub name: String,
   pub bytes: u16,
-  pub cycles: u16,
+  pub cycles: u8,
   pub addressing_mode: AddressingMode,
 }
 impl OpCode {
@@ -36,7 +36,7 @@ impl OpCode {
     code: u8,
     name: &str,
     bytes: u16,
-    cycles: u16,
+    cycles: u8,
     addressing_mode: AddressingMode,
   ) -> Self {
     OpCode {
@@ -68,17 +68,7 @@ pub struct CPU {
   pub bus: Bus,
 }
 
-pub fn trace(cpu: &CPU) -> String {
-  // 空実装
-  // 0064  A2 01     LDX #$01                        A:01 X:02 Y:03 P:24 SP:FD
-  // 0064 => program_counter
-  // A2 01 => binary code
-  // LDX #$01 => assembly code
-  // A:01 => Accumrator
-  // X:02 => Resister X
-  // Y:03 => Resister Y
-  // P:24 => Status
-  // SP:FD => Stack Pointer
+pub fn trace(cpu: &mut CPU) -> String {
   let program_counter = cpu.program_counter - 1;
   let pc = format!("{:<04X}", program_counter);
   let op = cpu.mem_read(program_counter);
@@ -90,7 +80,7 @@ pub fn trace(cpu: &CPU) -> String {
   }
   let bin = binary(op, &args);
   let asm = disasm(program_counter, &ops, &args);
-  let memacc = memory_access(&cpu, &ops, &args);
+  let memacc = memory_access(cpu, &ops, &args);
   let status = cpu2str(cpu);
 
   format!(
@@ -171,7 +161,7 @@ fn address(program_counter: u16, ops: &OpCode, args: &Vec<u8>) -> String {
   }
 }
 
-fn memory_access(cpu: &CPU, ops: &OpCode, args: &Vec<u8>) -> String {
+fn memory_access(cpu: &mut CPU, ops: &OpCode, args: &Vec<u8>) -> String {
   // ジャンプ系はログを変える
   if ops.name.starts_with("J") {
     if ops.addressing_mode == AddressingMode::Indirect {
@@ -249,7 +239,7 @@ fn cpu2str(cpu: &CPU) -> String {
 }
 
 impl Mem for CPU {
-  fn mem_read(&self, addr: u16) -> u8 {
+  fn mem_read(&mut self, addr: u16) -> u8 {
     self.bus.mem_read(addr)
   }
   fn mem_write(&mut self, addr: u16, data: u8) {
@@ -270,7 +260,7 @@ impl CPU {
     }
   }
 
-  fn get_operand_address(&self, _mode: &AddressingMode) -> u16 {
+  fn get_operand_address(&mut self, _mode: &AddressingMode) -> u16 {
     match _mode {
       AddressingMode::Implied => {
         panic!("Don't Ask Here Address of Implied");
@@ -340,7 +330,7 @@ impl CPU {
   //   self.bus.mem_write(addr, data);
   // }
 
-  pub fn mem_read_u16(&self, pos: u16) -> u16 {
+  pub fn mem_read_u16(&mut self, pos: u16) -> u16 {
     if pos == 0xFF || pos == 0x02FF {
       // メモリアクセス時のCPUバグ
       // https://www.nesdev.org/obelisk-6502-guide/reference.html#JMP
@@ -409,6 +399,7 @@ impl CPU {
           callback(self);
           call(self, &op);
 
+          // TODO cycleの計算
           self.bus.tick(op.cycles);
         }
         _ => {
