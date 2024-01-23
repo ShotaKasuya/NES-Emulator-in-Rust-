@@ -24,6 +24,7 @@ mod frame;
 mod opscodes;
 mod palette;
 mod ppu;
+mod render;
 mod rom;
 
 fn main() {

@@ -58,14 +58,14 @@ const FLAG_BREAK2: u8 = 1 << 5;
 const FLAG_OVERFLOW: u8 = 1 << 6;
 const FLAG_NEGATICE: u8 = 1 << 7;
 
-pub struct CPU {
+pub struct CPU<'a> {
   pub register_a: u8,
   pub register_x: u8,
   pub register_y: u8,
   pub status: u8,
   pub stack_pointer: u8,
   pub program_counter: u16,
-  pub bus: Bus,
+  pub bus: Bus<'a>,
 }
 
 pub fn trace(cpu: &mut CPU) -> String {
@@ -238,7 +238,7 @@ fn cpu2str(cpu: &CPU) -> String {
   )
 }
 
-impl Mem for CPU {
+impl Mem for CPU<'_> {
   fn mem_read(&mut self, addr: u16) -> u8 {
     self.bus.mem_read(addr)
   }
@@ -1064,10 +1064,11 @@ mod test {
   use super::*;
   use crate::bus::Bus;
   use crate::cartridge::test_rom;
+  use crate::ppu::NesPPU;
 
   #[test]
   fn test_format_trace() {
-    let mut bus = Bus::new(test_rom());
+    let mut bus = Bus::new(test_rom(), move |&NesPPU| {});
     bus.mem_write(100, 0xa2);
     bus.mem_write(101, 0x01);
     bus.mem_write(102, 0xca);
@@ -1099,7 +1100,7 @@ mod test {
 
   #[test]
   fn test_format_mem_access() {
-    let mut bus = Bus::new(test_rom());
+    let mut bus = Bus::new(test_rom(), move |&NesPPU| {});
     // ORA ($33), Y
     bus.mem_write(100, 0x11);
     bus.mem_write(101, 0x33);
@@ -1128,7 +1129,7 @@ mod test {
   where
     F: Fn(&mut CPU),
   {
-    let mut cpu = CPU::new(Bus::new(Rom::empty()));
+    let mut cpu = CPU::new(Bus::new(Rom::empty(), move |&NesPPU| {}));
     cpu.load();
     cpu.reset();
 
