@@ -247,8 +247,8 @@ impl Mem for CPU<'_> {
   }
 }
 
-impl CPU {
-  pub fn new(bus: Bus) -> Self {
+impl<'a> CPU<'a> {
+  pub fn new(bus: Bus<'a>) -> CPU<'a> {
     CPU {
       register_a: 0,
       register_x: 0,
@@ -369,7 +369,7 @@ impl CPU {
     self.stack_pointer = 0xFD;
     self.program_counter = self.mem_read_u16(0xFFFC);
     // println!("PC: {:X}", self.program_counter);
-    self.program_counter = 0xC000;
+    // self.program_counter = 0xC000;
   }
 
   pub fn run(&mut self) {
@@ -387,7 +387,7 @@ impl CPU {
       let opscode = self.mem_read(self.program_counter);
       self.program_counter += 1;
 
-      // println!("OPS: {:X}", opscode);
+      println!("OPS: {:X}", opscode);
 
       let op = self.find_ops(opscode);
       match op {
@@ -399,7 +399,7 @@ impl CPU {
           callback(self);
           call(self, &op);
 
-          // TODO cycleの計算
+          // TODO cycleの計算b
           self.bus.tick(op.cycles);
         }
         _ => {
@@ -420,6 +420,7 @@ impl CPU {
 
     self.bus.tick(2);
     self.program_counter = self.mem_read_u16(0xFFFA);
+    println!("**interrupt nmi**");
   }
 
   fn find_ops(&self, opscode: u8) -> Option<OpCode> {
@@ -1068,7 +1069,7 @@ mod test {
 
   #[test]
   fn test_format_trace() {
-    let mut bus = Bus::new(test_rom(), move |&NesPPU| {});
+    let mut bus = Bus::new(test_rom(), move |ppu: &NesPPU| {});
     bus.mem_write(100, 0xa2);
     bus.mem_write(101, 0x01);
     bus.mem_write(102, 0xca);
@@ -1100,7 +1101,7 @@ mod test {
 
   #[test]
   fn test_format_mem_access() {
-    let mut bus = Bus::new(test_rom(), move |&NesPPU| {});
+    let mut bus = Bus::new(test_rom(), move |ppu: &NesPPU| {});
     // ORA ($33), Y
     bus.mem_write(100, 0x11);
     bus.mem_write(101, 0x33);
@@ -1125,9 +1126,10 @@ mod test {
     );
   }
 
+  /*
   fn run<F>(program: Vec<u8>, f: F) -> CPU
   where
-    F: Fn(&mut CPU),
+  F: Fn(&mut CPU),
   {
     let mut cpu = CPU::new(Bus::new(Rom::empty(), move |&NesPPU| {}));
     cpu.load();
@@ -1138,6 +1140,7 @@ mod test {
 
     cpu
   }
+  */
 
   fn assert_status(cpu: &CPU, flag: u8) {
     assert_eq!(cpu.status, flag);

@@ -8,7 +8,7 @@ pub fn render(ppu: &NesPPU, frame: &mut Frame) {
     let tile = ppu.vram[i] as u16;
     let tile_x = i % 32;
     let tile_y = i / 32;
-    let tile = &ppu.chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 5) as usize];
+    let tile = &ppu.chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
 
     for y in 0..=7 {
       let mut upper = tile[y];

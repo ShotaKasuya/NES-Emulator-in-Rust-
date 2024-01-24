@@ -1,17 +1,16 @@
 extern crate sdl2;
 
-use crate::bus::Bus;
 use crate::bus::Mem;
-use crate::cpu::trace;
 use crate::cpu::CPU;
+use bus::Bus;
 use cartridge::alter_ego_rom;
 use frame::show_tile;
-use rand::Rng;
+use frame::Frame;
+use ppu::NesPPU;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
-use sdl2::sys::KeyCode;
 use sdl2::EventPump;
 
 #[macro_use]
@@ -28,24 +27,18 @@ mod render;
 mod rom;
 
 fn main() {
-  // todo!("ファイル読み込み");
-  let rom = alter_ego_rom();
-  // let bus = Bus::new(rom);
-  // let mut cpu = CPU::new(bus);
-  // cpu.reset();
-
   // init sdl2
   let sdl_context = sdl2::init().unwrap();
   let video_subsystem = sdl_context.video().unwrap();
   let window = video_subsystem
-    .window("Snake Game", (32.0 * 10.0) as u32, (32.0 * 10.0) as u32)
+    .window("Nes Emurator", (256.0 * 2.0) as u32, (240.0 * 2.0) as u32)
     .position_centered()
     .build()
     .unwrap();
 
   let mut canvas = window.into_canvas().present_vsync().build().unwrap();
   let mut event_pump = sdl_context.event_pump().unwrap();
-  canvas.set_scale(10.0, 10.0).unwrap();
+  canvas.set_scale(2.0, 2.0).unwrap();
 
   let creator = canvas.texture_creator();
   let mut texture = creator
@@ -53,12 +46,16 @@ fn main() {
     .unwrap();
 
   // put CHR_ROM
-  let tile_frame = show_tile(&rom.chr_rom, 1, 0);
-  texture.update(None, &tile_frame.data, 256 * 3).unwrap();
-  canvas.copy(&texture, None, None).unwrap();
-  canvas.present();
+  let rom = alter_ego_rom();
+  let mut frame = Frame::new();
+  let bus = Bus::new(rom, move |ppu: &NesPPU| {
+    println!("***GAME LOOP***");
+    render::render(ppu, &mut frame);
+    texture.update(None, &frame.data, 256 * 3).unwrap();
 
-  loop {
+    canvas.copy(&texture, None, None).unwrap();
+
+    canvas.present();
     for event in event_pump.poll_iter() {
       match event {
         Event::Quit { .. }
@@ -69,7 +66,12 @@ fn main() {
         _ => { /* do nothing */ }
       }
     }
-  }
+  });
+
+  let mut cpu = CPU::new(bus);
+
+  cpu.reset();
+  cpu.run_with_callback(move |cpu| {});
   /*
   let mut screen_state = [0 as u8; 32 * 3 * 32];
   let mut rng = rand::thread_rng();

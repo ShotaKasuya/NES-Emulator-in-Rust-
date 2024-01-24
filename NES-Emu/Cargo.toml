@@ -1,5 +1,5 @@
 [package]
-name = "NES-Emu"
+name = "nes_emu"
 version = "0.1.0"
 edition = "2021"
 build = "build.rs"
