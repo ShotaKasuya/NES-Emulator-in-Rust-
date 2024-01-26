@@ -1,8 +1,5 @@
 use crate::bus::{Bus, Mem};
 use crate::opscodes::{call, CPU_OPS_CODES};
-use crate::rom::Rom;
-use std::fmt::format;
-use std::marker::Copy;
 
 #[derive(Debug, PartialEq, Clone)]
 #[allow(non_camel_case_types)]
@@ -23,12 +20,21 @@ pub enum AddressingMode {
   NoneAddressing,
 }
 
+#[derive(Debug, PartialEq, Clone)]
+#[allow(non_camel_case_types)]
+pub enum CycleCalcMode {
+  None,
+  Page,
+  Branch,
+}
+
 #[derive(Clone, Debug)]
 pub struct OpCode {
   pub code: u8,
   pub name: String,
   pub bytes: u16,
   pub cycles: u8,
+  pub cycle_calc_mode: CycleCalcMode,
   pub addressing_mode: AddressingMode,
 }
 impl OpCode {
@@ -37,6 +43,7 @@ impl OpCode {
     name: &str,
     bytes: u16,
     cycles: u8,
+    cycle_calc_mode: CycleCalcMode,
     addressing_mode: AddressingMode,
   ) -> Self {
     OpCode {
@@ -44,6 +51,7 @@ impl OpCode {
       name: String::from(name),
       bytes: bytes,
       cycles: cycles,
+      cycle_calc_mode: cycle_calc_mode,
       addressing_mode: addressing_mode,
     }
   }
@@ -66,6 +74,8 @@ pub struct CPU<'a> {
   pub stack_pointer: u8,
   pub program_counter: u16,
   pub bus: Bus<'a>,
+
+  add_cycle: u8,
 }
 
 pub fn trace(cpu: &mut CPU) -> String {
@@ -257,6 +267,7 @@ impl<'a> CPU<'a> {
       stack_pointer: 0xFD,                  // Fixme
       program_counter: 0,
       bus: bus,
+      add_cycle: 0,
     }
   }
 
@@ -284,11 +295,19 @@ impl<'a> CPU<'a> {
       AddressingMode::Absolute_X => {
         let base = self.mem_read_u16(self.program_counter);
         let addr = base.wrapping_add(self.register_x as u16);
+        // (+1 if page crossed)
+        if base & 0xFF00 != base & 0xFF00 {
+          self.add_cycle += 1;
+        }
         addr
       }
       AddressingMode::Absolute_Y => {
         let base = self.mem_read_u16(self.program_counter);
         let addr = base.wrapping_add(self.register_y as u16);
+        // (+1 if page crossed)
+        if base & 0xFF00 != base & 0xFF00 {
+          self.add_cycle += 1;
+        }
         addr
       }
       AddressingMode::Indirect => {
@@ -306,11 +325,14 @@ impl<'a> CPU<'a> {
 
         let deref_base = self.mem_read_u16(base as u16);
         let deref = deref_base.wrapping_add(self.register_y as u16);
+
+        // (+1 if page crossed)
+        if deref_base & 0xFF00 != deref & 0xFF00 {
+          self.add_cycle += 1;
+        }
         deref
       }
       AddressingMode::Relative => {
-        // let base = self.mem_read(self.program_counter);
-        // ((base as i16) + (self.program_counter as i16)) as u16
         let base = self.mem_read(self.program_counter);
         let base = base as i8;
         let addr = base as i32 + self.program_counter as i32;
@@ -396,11 +418,12 @@ impl<'a> CPU<'a> {
           if op.name == "BRK" {
             return;
           }
+          self.add_cycle = 0;
           callback(self);
           call(self, &op);
 
           // TODO cycleの計算b
-          self.bus.tick(op.cycles);
+          self.bus.tick(op.cycles + self.add_cycle);
         }
         _ => {
           // panic!("no implemention {:02X}", opscode);
@@ -700,18 +723,12 @@ impl<'a> CPU<'a> {
 
   // キャリーがクリアなら分岐
   pub fn bcc(&mut self, _mode: &AddressingMode) {
-    if self.status & FLAG_CARRY == 0 {
-      let addr = self.get_operand_address(_mode);
-      self.program_counter = addr
-    }
+    self._branch(_mode, FLAG_CARRY, false);
   }
 
   // キャリーが立っていたら分岐
   pub fn bcs(&mut self, _mode: &AddressingMode) {
-    if self.status & FLAG_CARRY != 0 {
-      let addr = self.get_operand_address(_mode);
-      self.program_counter = addr
-    }
+    self._branch(_mode, FLAG_CARRY, true);
   }
 
   // キャリーフラグをセット
@@ -726,10 +743,7 @@ impl<'a> CPU<'a> {
 
   // ゼロフラグが立っていたら分岐
   pub fn beq(&mut self, _mode: &AddressingMode) {
-    if self.status & FLAG_ZERO != 0 {
-      let addr = self.get_operand_address(_mode);
-      self.program_counter = addr
-    }
+    self._branch(_mode, FLAG_ZERO, true);
   }
 
   // レジスタaとメモリの値の論理積が0ならゼロフラグを立てる
@@ -748,28 +762,44 @@ impl<'a> CPU<'a> {
     self.status = (self.status & !flags) | (value & flags);
   }
 
+  fn _branch(&mut self, mode: &AddressingMode, flag: u8, nonzero: bool) {
+    let addr = self.get_operand_address(mode);
+    if nonzero {
+      if self.status & flag != 0 {
+        // (+1 if branch succeeds
+        //  +2 if to a new page)
+        self.add_cycle += 1;
+        if self.program_counter & 0xFF00 != addr & 0xFF00 {
+          self.add_cycle += 2;
+        }
+        self.program_counter = addr;
+      }
+    } else {
+      if self.status & flag == 0 {
+        // (+1 if branch succeeds
+        //  +2 if to a new page)
+        self.add_cycle += 1;
+        if self.program_counter & 0xFF00 != addr & 0xFF00 {
+          self.add_cycle += 2;
+        }
+        self.program_counter = addr;
+      }
+    }
+  }
+
   // ネガティブフラグが立っていたら分岐
   pub fn bmi(&mut self, _mode: &AddressingMode) {
-    if self.status & FLAG_NEGATICE != 0 {
-      let addr = self.get_operand_address(_mode);
-      self.program_counter = addr
-    }
+    self._branch(_mode, FLAG_NEGATICE, true);
   }
 
   // ゼロフラグがクリアなら分岐
   pub fn bne(&mut self, _mode: &AddressingMode) {
-    if self.status & FLAG_ZERO == 0 {
-      let addr = self.get_operand_address(_mode);
-      self.program_counter = addr
-    }
+    self._branch(_mode, FLAG_ZERO, false);
   }
 
   // ネガティブフラグがクリアなら分岐
   pub fn bpl(&mut self, _mode: &AddressingMode) {
-    if self.status & FLAG_NEGATICE == 0 {
-      let addr = self.get_operand_address(_mode);
-      self.program_counter = addr;
-    }
+    self._branch(_mode, FLAG_NEGATICE, false);
   }
 
   // オーバーフローフラグのクリア
@@ -816,18 +846,12 @@ impl<'a> CPU<'a> {
 
   // オーバーフローフラグがクリアなら分岐
   pub fn bvc(&mut self, _mode: &AddressingMode) {
-    if self.status & FLAG_OVERFLOW == 0 {
-      let addr = self.get_operand_address(_mode);
-      self.program_counter = addr;
-    }
+    self._branch(_mode, FLAG_OVERFLOW, false);
   }
 
   // オーバーフローフラグが立っていたら分岐
   pub fn bvs(&mut self, _mode: &AddressingMode) {
-    if self.status & FLAG_OVERFLOW != 0 {
-      let addr = self.get_operand_address(_mode);
-      self.program_counter = addr;
-    }
+    self._branch(_mode, FLAG_OVERFLOW, true);
   }
 
   // キャリーをクリア

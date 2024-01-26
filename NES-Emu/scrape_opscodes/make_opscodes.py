@@ -9,10 +9,10 @@ def main():
         f.write(header)
         for opcode in official_ops:
             for addr_mode in opcode.addr:
-                f.write(f'OpCode::new({addr_mode.code.replace("$", "0x")}, \"{opcode.name}\", {addr_mode.bytes}, {addr_mode.cycles}, AddressingMode::{addr_mode.addressingmode}),\n')
+                f.write(f'OpCode::new({addr_mode.code.replace("$", "0x")}, \"{opcode.name}\", {addr_mode.bytes}, {addr_mode.cycles}, CycleCalcMode::{addr_mode.calc_cycle_mode}, AddressingMode::{addr_mode.addressingmode}),\n')
         for opcode in unofficial_ops:
             for addr_mode in opcode.addr:
-                f.write(f'OpCode::new({addr_mode.code.replace("$", "0x")}, \"{"*" + opcode.name}\", {addr_mode.bytes}, {addr_mode.cycles}, AddressingMode::{addr_mode.addressingmode}),\n')
+                f.write(f'OpCode::new({addr_mode.code.replace("$", "0x")}, \"{"*" + opcode.name}\", {addr_mode.bytes}, {addr_mode.cycles}, CycleCalcMode::{addr_mode.calc_cycle_mode}, AddressingMode::{addr_mode.addressingmode}),\n')
         f.write(mider)
         names = []
         for opcode in official_ops:
