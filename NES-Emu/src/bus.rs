@@ -81,6 +81,11 @@ impl Mem for Bus<'_> {
         let mirror_down_addr = addr & 0b0010_0000_0000_0111;
         self.mem_read(mirror_down_addr)
       }
+      0x4016 => {
+        // TODO JOYPAD
+        println!("TODO JOYPAD");
+        0
+      }
       PRG_ROM..=PRG_ROM_END => self.read_prg_rom(addr),
       _ => {
         // println!("Ignoreing mem access at {}", addr);
@@ -98,9 +103,7 @@ impl Mem for Bus<'_> {
       0x2000 => self.ppu.write_to_ctrl(data),
       0x2001 => self.ppu.write_to_mask(data),
       0x2002 => self.ppu.write_to_status(data),
-      // TODO 0x2003 => OAM Address
       0x2003 => self.ppu.write_to_oam_addr(data),
-      // TODO 0x2004 => OAM Data
       0x2004 => self.ppu.write_to_oam_data(data),
       // TODO 0x2005 => scroll
       0x2005 => {}
@@ -126,6 +129,19 @@ impl Mem for Bus<'_> {
         // TODO APU DMCch
       }
       // TODO 0x4014 => OAM DMA
+      0x4014 => {
+        // $XX を書き込むと、256 バイトのデータが CPU ページ $XX00 ～ $XXFF から内部 PPU OAM にアップロードされます。
+        // このページは通常、内部 RAM (通常は $0200 ～ $02FF) にありますが、カートリッジ RAM または ROM も使用できます。
+
+        let mut values: [u8; 256] = [0; 256];
+        for i in 0x00..0xFF {
+          values[i] = self.mem_read((data as u16) << 8 | i as u16);
+        }
+        self.ppu.write_to_oam_dma(values);
+      }
+      0x4016 => {
+        // TODO JOY PAD
+      }
       PRG_ROM..=PRG_ROM_END => {
         panic!("Attempt to write to Cartridge ROM space")
       }

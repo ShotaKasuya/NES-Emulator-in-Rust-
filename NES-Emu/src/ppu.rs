@@ -109,6 +109,10 @@ impl NesPPU {
     self.oam_data[self.oam_addr as usize]
   }
 
+  pub fn write_to_oam_dma(&mut self, values: [u8; 256]) {
+    self.oam_data = values;
+  }
+
   fn increment_vram_addr(&mut self) {
     self.addr.increment(self.ctrl.vram_addr_increment());
   }
