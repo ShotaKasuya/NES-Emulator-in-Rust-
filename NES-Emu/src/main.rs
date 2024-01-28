@@ -49,7 +49,7 @@ fn main() {
   let rom = alter_ego_rom();
   let mut frame = Frame::new();
   let bus = Bus::new(rom, move |ppu: &NesPPU| {
-    println!("***GAME LOOP***");
+    // println!("***GAME LOOP***");
     render::render(ppu, &mut frame);
     texture.update(None, &frame.data, 256 * 3).unwrap();
 

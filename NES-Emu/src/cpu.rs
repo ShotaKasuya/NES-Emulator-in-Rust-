@@ -409,15 +409,15 @@ impl<'a> CPU<'a> {
       let opscode = self.mem_read(self.program_counter);
       self.program_counter += 1;
 
-      println!("OPS: {:X}", opscode);
+      // println!("OPS: {:X}", opscode);
 
       let op = self.find_ops(opscode);
       match op {
         Some(op) => {
           // FIXME FOR TEST
-          if op.name == "BRK" {
-            return;
-          }
+          // if op.name == "BRK" {
+          //   return;
+          // }
           self.add_cycle = 0;
           callback(self);
           call(self, &op);
@@ -443,7 +443,7 @@ impl<'a> CPU<'a> {
 
     self.bus.tick(2);
     self.program_counter = self.mem_read_u16(0xFFFA);
-    println!("**interrupt nmi**");
+    // println!("**interrupt nmi**");
   }
 
   fn find_ops(&self, opscode: u8) -> Option<OpCode> {
@@ -455,64 +455,144 @@ impl<'a> CPU<'a> {
     return None;
   }
 
-  pub fn anc(&mut self, mode: &AddressingMode) {}
+  pub fn anc(&mut self, mode: &AddressingMode) {
+    todo!("anc")
+  }
 
-  pub fn asr(&mut self, mode: &AddressingMode) {}
+  pub fn asr(&mut self, mode: &AddressingMode) {
+    todo!("asr")
+  }
 
-  pub fn arr(&mut self, mode: &AddressingMode) {}
+  pub fn arr(&mut self, mode: &AddressingMode) {
+    todo!("arr")
+  }
 
-  pub fn lxa(&mut self, mode: &AddressingMode) {}
+  pub fn lxa(&mut self, mode: &AddressingMode) {
+    todo!("lxa")
+  }
 
-  pub fn sha(&mut self, mode: &AddressingMode) {}
+  pub fn sha(&mut self, mode: &AddressingMode) {
+    todo!("sha")
+  }
 
-  pub fn sbx(&mut self, mode: &AddressingMode) {}
+  pub fn sbx(&mut self, mode: &AddressingMode) {
+    //  A&X minus #{imm} into X
+    // AND X register with accumulator and store result in X regis-ter, then
+    // subtract byte from X register (without borrow).
+    // Status flags: N,Z,C
 
-  pub fn jam(&mut self, mode: &AddressingMode) {}
+    // AND X をアキュムレータに登録し、結果を X レジスタに格納します。 X レジスタからバイトを減算します (ボローなし)。 ステータスフラグ：N、Z、C
+    let addr = self.get_operand_address(mode);
+    let value = self.mem_read(addr);
+    let (v, overflow) = (self.register_a & self.register_x).overflowing_sub(value);
+    self.register_x = v;
+    self.update_zero_and_negative_flags(v);
+    self.status = if overflow {
+      self.status & !FLAG_OVERFLOW
+    } else {
+      self.status | FLAG_OVERFLOW
+    };
+    todo!("sbx")
+  }
 
-  pub fn lae(&mut self, mode: &AddressingMode) {}
+  pub fn jam(&mut self, mode: &AddressingMode) {
+    // Stop porogram counter (processor lock up).
+    self.program_counter -= 1;
+    panic!("CALL JAM operation.");
+  }
 
-  pub fn shx(&mut self, mode: &AddressingMode) {}
+  pub fn lae(&mut self, mode: &AddressingMode) {
+    // stores {adr}&S into A, X and S
 
-  pub fn shy(&mut self, mode: &AddressingMode) {}
+    // AND memory with stack pointer,transfer result to accu-mlator,X register and stack pointer.
+    // Status flags: N,Z
+    let addr = self.get_operand_address(mode);
+    let value = self.mem_read(addr);
+    let s = self._pop();
+    self.register_a = value & s;
+    self.register_x = self.register_a;
+    self._push(self.register_a);
+    self.update_zero_and_negative_flags(self.register_a);
+    todo!("lae")
+  }
 
-  pub fn ane(&mut self, mode: &AddressingMode) {}
+  pub fn shx(&mut self, mode: &AddressingMode) {
+    // M = 3D X AND HIGH(arg) + 1
+    let addr = self.get_operand_address(mode);
+    let h = ((addr & 0xFF00) >> 8) as u8;
+    self.mem_write(addr, (self.register_x & h).wrapping_add(1));
+    todo!("shx")
+  }
 
-  pub fn shs(&mut self, mode: &AddressingMode) {}
+  pub fn shy(&mut self, mode: &AddressingMode) {
+    // Y&H into {adr}
+    // AND Y register with the high byte of the target address of argment
+    // +1. Store the result memory
+    let addr = self.get_operand_address(mode);
+    let h = ((addr & 0xFF00) >> 8) as u8;
+    self.mem_write(addr, (self.register_y & h).wrapping_add(1));
+    todo!("shy")
+  }
+
+  pub fn ane(&mut self, mode: &AddressingMode) {
+    // TXA + AND #{imm}
+    self.txa(mode);
+    self.and(mode);
+    todo!("ane")
+  }
+
+  pub fn shs(&mut self, mode: &AddressingMode) {
+    // stores A&X into S and A&X&H into {adr}
+    // アキュムレータとXレジスタとAND演算し、結果をスタックポインタに格納する。
+    // 次にスタックポインタと引数1のターゲットアドレスの上位バイトをAND演算し、結果をメモリに格納する。
+    self._push(self.register_a & self.register_x);
+    let addr = self.get_operand_address(mode);
+    let h = ((addr & 0xFF00) >> 8) as u8;
+    self.mem_write(addr, self.register_a & self.register_x & h);
+    todo!("shs")
+  }
 
   pub fn rra(&mut self, mode: &AddressingMode) {
     self.ror(mode);
     self.adc(mode);
+    todo!("rra")
   }
 
   pub fn sre(&mut self, mode: &AddressingMode) {
     self.lsr(mode);
     self.eor(mode);
+    todo!("sre")
   }
 
   pub fn rla(&mut self, mode: &AddressingMode) {
     self.rol(mode);
     self.and(mode);
+    todo!("rla")
   }
 
   pub fn slo(&mut self, mode: &AddressingMode) {
     self.asl(mode);
     self.ora(mode);
+    todo!("slo")
   }
 
   pub fn isb(&mut self, mode: &AddressingMode) {
     // = ISC
     self.inc(mode);
     self.sbc(mode);
+    todo!("isb")
   }
 
   pub fn dcp(&mut self, mode: &AddressingMode) {
     self.dec(mode);
     self.cmp(mode);
+    todo!("dcp")
   }
 
   pub fn sax(&mut self, mode: &AddressingMode) {
     let addr = self.get_operand_address(mode);
     self.mem_write(addr, self.register_a & self.register_x);
+    todo!("sax")
   }
 
   pub fn lax(&mut self, mode: &AddressingMode) {

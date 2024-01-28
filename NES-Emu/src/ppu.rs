@@ -5,6 +5,8 @@ pub struct NesPPU {
   pub chr_rom: Vec<u8>,
   pub palette_table: [u8; 32],
   pub vram: [u8; 2048],
+
+  pub oam_addr: u8,
   pub oam_data: [u8; 256],
 
   pub mirroring: Mirroring,
@@ -13,6 +15,7 @@ pub struct NesPPU {
   internal_data_buf: u8,
 
   // TODO mask 0x2001
+  mask: MaskRegister,
   // TODO status 0x2002
   status: StatusRegister,
   // TODO OAM Address 0x2003, 0x2004
@@ -29,11 +32,13 @@ impl NesPPU {
       chr_rom: chr_rom,
       mirroring: mirroring,
       vram: [0; 2048],
+      oam_addr: 0,
       oam_data: [0; 64 * 4],
       palette_table: [0; 32],
       ctrl: ControlRegister::new(),
       addr: AddrResister::new(),
       status: StatusRegister::new(),
+      mask: MaskRegister::new(),
       internal_data_buf: 0,
       scanline: 0,
       cycles: 0,
@@ -51,18 +56,20 @@ impl NesPPU {
 
     match addr {
       0..=0x1FFF => {
-        panic!(
-          "addr space 0x0000..0x1FFF is not expected to be used, requested = {:X} ",
-          addr,
-        )
+        // panic!(
+        //   "addr space 0x0000..0x1FFF is not expected to be used, requested = {:X} ",
+        //   addr,
+        // )
       }
       0x2000..=0x2FFF => {
         self.vram[self.mirror_vram_addr(addr) as usize] = value;
       }
-      0x3000..=0x3EFF => panic!(
-        "addr space 0x3000..0x3EFF is not expected to be used, requested = {}",
-        addr
-      ),
+      0x3000..=0x3EFF => {
+        // panic!(
+        //   "addr space 0x3000..0x3EFF is not expected to be used, requested = {}",
+        //   addr
+        // )
+      }
       0x3F00..=0x3FFF => self.palette_table[(addr - 0x3F00) as usize] = value,
       _ => panic!("unexpected access to mittord space {}", addr),
     }
@@ -75,6 +82,31 @@ impl NesPPU {
     if !before_nmi_status && self.ctrl.generate_vblank_nmi() && self.status.is_in_vblank() {
       self.nmi_interrupt = Some(1);
     }
+  }
+
+  pub fn read_status(&self) -> u8 {
+    self.status.bits()
+  }
+
+  pub fn write_to_status(&mut self, value: u8) {
+    self.status.update(value);
+  }
+
+  pub fn write_to_mask(&mut self, value: u8) {
+    self.mask.update(value);
+  }
+
+  pub fn write_to_oam_addr(&mut self, value: u8) {
+    self.oam_addr = value;
+  }
+
+  pub fn write_to_oam_data(&mut self, value: u8) {
+    self.oam_data[self.oam_addr as usize] = value;
+    self.oam_addr = self.oam_addr.wrapping_add(1);
+  }
+
+  pub fn read_oam_data(&self) -> u8 {
+    self.oam_data[self.oam_addr as usize]
   }
 
   fn increment_vram_addr(&mut self) {
@@ -248,6 +280,7 @@ bitflags! {
     const VBLANK_HAS_STARTED  =0b1000_0000;
   }
 }
+
 impl StatusRegister {
   pub fn new() -> Self {
     StatusRegister::from_bits_truncate(0b0000_0000)
@@ -260,5 +293,30 @@ impl StatusRegister {
   }
   pub fn reset_vblank_status(&mut self) {
     self.set_vblank_status(false);
+  }
+  pub fn update(&mut self, data: u8) {
+    *self.0.bits_mut() = data;
+  }
+}
+
+bitflags! {
+  pub struct MaskRegister:u8{
+    const GREYSCALE               = 0b0000_0001;
+    const SHOW_BACKGROUND_IN_LEFT = 0b0000_0010;
+    const SHOW_SPRITES_IN_LEFT    = 0b0000_0100;
+    const SHOW_BACKGROUND         = 0b0000_1000;
+    const SHOW_SPRITES            = 0b0001_0000;
+    const EMPHASIZE_RED           = 0b0010_0000;
+    const EMPHASIZE_GREEN         = 0b0100_0000;
+    const EMPHASIZE_BLUE          = 0b1000_0000;
+  }
+}
+impl MaskRegister {
+  pub fn new() -> Self {
+    MaskRegister::from_bits_truncate(0b0000_0000)
+  }
+
+  pub fn update(&mut self, data: u8) {
+    *self.0.bits_mut() = data;
   }
 }

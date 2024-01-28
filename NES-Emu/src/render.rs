@@ -20,6 +20,10 @@ pub fn render(ppu: &NesPPU, frame: &mut Frame) {
         upper = upper >> 1;
         lower = lower >> 1;
         let rgb = match value {
+          // 0 => palette::SYSTEM_PALLETE[0x01],
+          // 1 => palette::SYSTEM_PALLETE[0x23],
+          // 2 => palette::SYSTEM_PALLETE[0x27],
+          // 3 => palette::SYSTEM_PALLETE[0x30],
           0 => palette::SYSTEM_PALLETE[ppu.palette_table[0] as usize],
           1 => palette::SYSTEM_PALLETE[palette[1] as usize],
           2 => palette::SYSTEM_PALLETE[palette[2] as usize],
