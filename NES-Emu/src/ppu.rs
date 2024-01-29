@@ -274,6 +274,23 @@ impl ControlRegister {
       0x1000
     }
   }
+
+  pub fn is_sprt_8x16_mode(&self) -> bool {
+    self.contains(ControlRegister::SPRITE_SIZE)
+  }
+
+  pub fn sprt_pattern_addr(&self) -> u16 {
+    // ignore in 8x16 mode
+    // FIXME
+    // if self.is_sprt_8x16_mode() {
+    //   return 0x0000;
+    // }
+    if !self.contains(ControlRegister::SPRITE_PATTERN_ADDR) {
+      0x0000
+    } else {
+      0x1000
+    }
+  }
 }
 
 bitflags! {
