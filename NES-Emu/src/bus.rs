@@ -6,6 +6,7 @@ pub struct Bus<'call> {
   ppu: NesPPU,
   cycles: usize,
   joypad1: Joypad,
+  joypad2: Joypad,
   gameloop_callback: Box<dyn FnMut(&NesPPU, &mut Joypad) + 'call>,
 }
 
@@ -20,6 +21,7 @@ impl<'a> Bus<'a> {
       prg_rom: rom.prg_rom,
       ppu: ppu,
       joypad1: Joypad::new(),
+      joypad2: Joypad::new(),
       cycles: 0,
       gameloop_callback: Box::from(gameloop_callback),
     }
@@ -84,6 +86,7 @@ impl Mem for Bus<'_> {
         self.mem_read(mirror_down_addr)
       }
       0x4016 => self.joypad1.read(),
+      0x4017 => self.joypad2.read(),
       PRG_ROM..=PRG_ROM_END => self.read_prg_rom(addr),
       _ => {
         // println!("Ignoreing mem access at {}", addr);
@@ -104,7 +107,9 @@ impl Mem for Bus<'_> {
       0x2003 => self.ppu.write_to_oam_addr(data),
       0x2004 => self.ppu.write_to_oam_data(data),
       // TODO 0x2005 => scroll
-      0x2005 => {}
+      0x2005 => {
+        self.ppu.write_to_scroll(data);
+      }
       0x2006 => self.ppu.write_to_ppu_addr(data),
       0x2007 => self.ppu.write_to_data(data),
       0x2008..=PPU_REGISTERS_MIRRORS_END => {
@@ -123,7 +128,7 @@ impl Mem for Bus<'_> {
       0x400C | 0x400E | 0x400F => {
         // TODO APU 4ch
       }
-      0x4010..=0x4013 | 0x4015 | 0x4017 => {
+      0x4010..=0x4013 | 0x4015 => {
         // TODO APU DMCch
       }
       // TODO 0x4014 => OAM DMA
@@ -139,6 +144,9 @@ impl Mem for Bus<'_> {
       }
       0x4016 => {
         self.joypad1.write(data);
+      }
+      0x4017 => {
+        self.joypad2.write(data);
       }
       PRG_ROM..=PRG_ROM_END => {
         panic!("Attempt to write to Cartridge ROM space")
