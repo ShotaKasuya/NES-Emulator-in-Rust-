@@ -23,3 +23,7 @@ pub fn test_rom() -> Rom {
 pub fn alter_ego_rom() -> Rom {
   load_rom("rom/Alter_Ego.nes")
 }
+#[allow(dead_code)]
+pub fn bomb_sweeper_rom() -> Rom {
+  load_rom("rom/BombSweeper.nes")
+}

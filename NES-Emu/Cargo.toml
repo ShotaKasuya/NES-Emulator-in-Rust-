@@ -28,3 +28,11 @@ rev = "261c458af6e3eed5d099144aff95d2b5035f656b"
 
 [package.metadata.vcpkg.target]
 x86_64-pc-windows-msvc = { triplet = "x64-windows-static-md" }
+
+[[bin]]
+name="main"
+path="src/main.rs"
+
+[[bin]]
+name ="sound_test"
+path="src/sound_test.rs"

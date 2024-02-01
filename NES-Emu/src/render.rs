@@ -157,7 +157,7 @@ fn render_name_table(
 
       for x in (0..=7).rev() {
         // タイルを組み合わせている
-        let value = (1 & upper) << 1 | (1 & lower);
+        let value = (1 & lower) << 1 | (1 & upper);
         // タイルを横に
         upper = upper >> 1;
         lower = lower >> 1;

@@ -4,7 +4,9 @@ use std::collections::HashMap;
 
 use crate::bus::Mem;
 use crate::cpu::CPU;
+use apu::NesAPU;
 use bus::Bus;
+use cartridge::bomb_sweeper_rom;
 use cartridge::{alter_ego_rom, test_rom};
 use frame::show_tile;
 use frame::Frame;
@@ -19,6 +21,7 @@ use sdl2::EventPump;
 #[macro_use]
 extern crate lazy_static;
 
+mod apu;
 mod bus;
 mod cartridge;
 mod cpu;
@@ -50,7 +53,8 @@ fn main() {
     .unwrap();
 
   // put CHR_ROM
-  let rom = alter_ego_rom();
+  let rom = bomb_sweeper_rom();
+  let apu = NesAPU::new(&sdl_context);
   let mut frame = Frame::new();
 
   let mut key_map = HashMap::new();
@@ -63,7 +67,7 @@ fn main() {
   key_map.insert(Keycode::A, joypad::JoypadButton::BUTTON_A);
   key_map.insert(Keycode::S, joypad::JoypadButton::BUTTON_B);
 
-  let bus = Bus::new(rom, move |ppu: &NesPPU, joypad1: &mut Joypad| {
+  let bus = Bus::new(rom, apu, move |ppu: &NesPPU, joypad1: &mut Joypad| {
     // println!("***GAME LOOP***");
     render::render(ppu, &mut frame);
     texture.update(None, &frame.data, 256 * 3).unwrap();
