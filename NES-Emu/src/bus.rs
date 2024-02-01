@@ -89,7 +89,7 @@ impl Mem for Bus<'_> {
       0x4017 => self.joypad2.read(),
       PRG_ROM..=PRG_ROM_END => self.read_prg_rom(addr),
       _ => {
-        // println!("Ignoreing mem access at {}", addr);
+        println!("Ignoreing mem access at {}", addr);
         0
       }
     }

@@ -31,6 +31,13 @@ pub fn render(ppu: &NesPPU, frame: &mut Frame) {
     (Mirroring::VERTICAL, 0x2400) | (Mirroring::VERTICAL, 0x2C00) => {
       (&ppu.vram[0x0400..0x0800], &ppu.vram[0x0000..0x0400])
     }
+    // FIXME 間違えてる
+    (Mirroring::HORIZONTAL, 0x2000) | (Mirroring::HORIZONTAL, 0x2800) => {
+      (&ppu.vram[0x000..0x400], &ppu.vram[0x400..0x800])
+    }
+    (Mirroring::HORIZONTAL, 0x2400) | (Mirroring::HORIZONTAL, 0x2C00) => {
+      (&ppu.vram[0x400..0x800], &ppu.vram[0x000..0x400])
+    }
     (_, _) => {
       panic!("Not supported mirroring type {:?}", ppu.mirroring);
     }
@@ -53,54 +60,18 @@ pub fn render(ppu: &NesPPU, frame: &mut Frame) {
     0,
   );
 
-  /*
-  // ===========================================================================================
-  // Draw BackGround
-  // ===========================================================================================
-  let bank = ppu.ctrl.background_paattern_addr();
-  for i in 0..0x03C0 {
-    let tile = ppu.vram[i] as u16;
-    let tile_x = i % 32;
-    let tile_y = i / 32;
-    let tile = &ppu.chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
-    let palette = bg_pallete(ppu, tile_x, tile_y);
-
-    for y in 0..=7 {
-      let mut upper = tile[y];
-      let mut lower = tile[y + 8];
-
-      for x in (0..=7).rev() {
-        let value = (1 & upper) << 1 | (1 & lower);
-        upper = upper >> 1;
-        lower = lower >> 1;
-        let rgb = match value {
-          // 0 => palette::SYSTEM_PALLETE[0x01],
-          // 1 => palette::SYSTEM_PALLETE[0x23],
-          // 2 => palette::SYSTEM_PALLETE[0x27],
-          // 3 => palette::SYSTEM_PALLETE[0x30],
-          0 => palette::SYSTEM_PALLETE[ppu.palette_table[0] as usize],
-          1 => palette::SYSTEM_PALLETE[palette[1] as usize],
-          2 => palette::SYSTEM_PALLETE[palette[2] as usize],
-          3 => palette::SYSTEM_PALLETE[palette[3] as usize],
-          _ => panic!("can't be"),
-        };
-        frame.set_pixel(tile_x * 8 + x, tile_y * 8 + y, rgb);
-      }
-    }
-  }
-
   // ===========================================================================================
   // Draw Sprites
   // ===========================================================================================
   for i in (0..ppu.oam_data.len()).step_by(4).rev() {
-    let tile_idx = ppu.oam_data[i + 1] as u16;
-    let tile_x = ppu.oam_data[i + 3] as usize;
     let tile_y = ppu.oam_data[i] as usize;
-    let addr = ppu.oam_data[i + 2] as u8;
+    let tile_idx = ppu.oam_data[i + 1] as u16;
+    let attr = ppu.oam_data[i + 2] as u8;
+    let tile_x = ppu.oam_data[i + 3] as usize;
 
-    let flip_vertical = addr >> 7 & 1 == 1;
-    let flip_horizontal = addr >> 6 & 1 == 1;
-    let pallette_idx = addr & 0b11;
+    let flip_vertical = (attr >> 7 & 1) == 1;
+    let flip_horizontal = (attr >> 6 & 1) == 1;
+    let pallette_idx = attr & 0b11;
     let sprite_pallette = sprite_palette(ppu, pallette_idx);
 
     let bank: u16 = ppu.ctrl.sprite_pattern_addr();
@@ -122,14 +93,13 @@ pub fn render(ppu: &NesPPU, frame: &mut Frame) {
         };
         match (flip_horizontal, flip_vertical) {
           (false, false) => frame.set_pixel(tile_x + x, tile_y + y, rgb),
-          (true, false) => frame.set_pixel(tile_x + 8 - x, tile_y + y, rgb),
-          (false, true) => frame.set_pixel(tile_x + x, tile_y + 8 - y, rgb),
-          (true, true) => frame.set_pixel(tile_x + 8 + x, tile_y + 8 + y, rgb),
+          (true, false) => frame.set_pixel(tile_x + 7 - x, tile_y + y, rgb),
+          (false, true) => frame.set_pixel(tile_x + x, tile_y + 7 - y, rgb),
+          (true, true) => frame.set_pixel(tile_x + 7 - x, tile_y + 7 - y, rgb),
         }
       }
     }
   }
-  */
 }
 
 fn bg_pallete(ppu: &NesPPU, attribute_table: &[u8], tile_colum: usize, tile_row: usize) -> [u8; 4] {

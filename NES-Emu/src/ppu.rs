@@ -67,6 +67,7 @@ impl NesPPU {
         self.vram[self.mirror_vram_addr(addr) as usize] = value;
       }
       0x3000..=0x3EFF => {
+        self.vram[self.mirror_vram_addr(addr) as usize] = value;
         // panic!(
         //   "addr space 0x3000..0x3EFF is not expected to be used, requested = {}",
         //   addr
@@ -166,28 +167,31 @@ impl NesPPU {
   pub fn tick(&mut self, cycles: u8) -> bool {
     self.cycles += cycles as usize;
     if self.cycles >= 341 {
-      // if (self.status.is_sprite_zero_hit(self.cycles)) {
-      //   self.status.set_sprite_zero_hit(true);
-      // }
+      if self.is_sprite_zero_hit(self.cycles) {
+        self.status.set_sprite_zero_hit(true);
+      }
       self.cycles = self.cycles - 341;
       self.scanline += 1;
 
       if self.scanline == 241 {
-        // self.status.set_sprite_zero_hit(false);
+        self.status.set_vblank_status(true);
+        self.status.set_sprite_zero_hit(false);
         if self.ctrl.generate_vblank_nmi() {
-          self.status.set_vblank_status(true);
-          // todo!("Should trigger NMI interrupt")
           self.nmi_interrupt = Some(1);
         }
       }
 
       if self.scanline >= 262 {
         self.scanline = 0;
-        // self.set_sprite_zero_hit(false);
+        self.status.set_sprite_zero_hit(false);
         self.status.reset_vblank_status();
-        // FIXME..
-        // self.nmi_interrupt = None;
+        self.nmi_interrupt = None;
         return true;
+      }
+
+      if self.scanline == 257 {
+        // OAMDDRは、プリレンダリング及び表示可能のスキャンラインのティック257~320(スプライトタイルの読み込み間隔)のそれぞれの間に0に設定されます。
+        self.oam_addr = 0;
       }
     }
     return false;
@@ -286,7 +290,7 @@ impl ControlRegister {
     last_status
   }
 
-  pub fn background_paattern_addr(&self) -> u16 {
+  pub fn background_pattern_addr(&self) -> u16 {
     if !self.contains(ControlRegister::BACKGROUND_PATTERN_ADDR) {
       0x0000
     } else {

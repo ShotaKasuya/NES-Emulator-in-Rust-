@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use crate::bus::Mem;
 use crate::cpu::CPU;
 use bus::Bus;
-use cartridge::alter_ego_rom;
+use cartridge::{alter_ego_rom, test_rom};
 use frame::show_tile;
 use frame::Frame;
 use joypad::Joypad;
@@ -63,7 +63,7 @@ fn main() {
   key_map.insert(Keycode::A, joypad::JoypadButton::BUTTON_A);
   key_map.insert(Keycode::S, joypad::JoypadButton::BUTTON_B);
 
-  let bus = Bus::new(rom, move |ppu: &NesPPU, joypad: &mut Joypad| {
+  let bus = Bus::new(rom, move |ppu: &NesPPU, joypad1: &mut Joypad| {
     // println!("***GAME LOOP***");
     render::render(ppu, &mut frame);
     texture.update(None, &frame.data, 256 * 3).unwrap();
@@ -81,12 +81,12 @@ fn main() {
 
         Event::KeyDown { keycode, .. } => {
           if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
-            joypad.set_button_pressed_status(*key, true);
+            joypad1.set_button_pressed_status(*key, true);
           }
         }
         Event::KeyUp { keycode, .. } => {
           if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
-            joypad.set_button_pressed_status(*key, false);
+            joypad1.set_button_pressed_status(*key, false);
           }
         }
         _ => { /* do nothing */ }
