@@ -141,7 +141,7 @@ fn render_name_table(
   shift_x: isize,
   shift_y: isize,
 ) {
-  let bank = ppu.ctrl.background_paattern_addr();
+  let bank = ppu.ctrl.background_pattern_addr();
   let attribute_table = &name_table[0x03C0..0x0400];
 
   for i in 0..0x03C0 {
