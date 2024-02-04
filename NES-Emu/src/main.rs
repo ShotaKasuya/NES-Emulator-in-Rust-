@@ -3,7 +3,7 @@ extern crate sdl2;
 use std::collections::HashMap;
 
 use crate::bus::Mem;
-use crate::cpu::CPU;
+use crate::cpu::{trace, CPU};
 use apu::NesAPU;
 use bus::Bus;
 use cartridge::bomb_sweeper_rom;
@@ -11,6 +11,7 @@ use cartridge::{alter_ego_rom, test_rom};
 use frame::show_tile;
 use frame::Frame;
 use joypad::Joypad;
+use log::trace;
 use ppu::NesPPU;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -34,6 +35,8 @@ mod render;
 mod rom;
 
 fn main() {
+  env_logger::init();
+
   // init sdl2
   let sdl_context = sdl2::init().unwrap();
   let video_subsystem = sdl_context.video().unwrap();
@@ -101,7 +104,9 @@ fn main() {
   let mut cpu = CPU::new(bus);
 
   cpu.reset();
-  cpu.run_with_callback(move |cpu| {});
+  cpu.run_with_callback(move |cpu| {
+    trace!("{}", trace(cpu));
+  });
   /*
   let mut screen_state = [0 as u8; 32 * 3 * 32];
   let mut rng = rand::thread_rng();

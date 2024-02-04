@@ -1,3 +1,5 @@
+use log::{error, trace, warn};
+
 use crate::{apu::NesAPU, joypad::Joypad, ppu::NesPPU, rom::Rom};
 
 pub struct Bus<'call> {
@@ -50,6 +52,11 @@ impl<'a> Bus<'a> {
   }
 
   pub fn poll_nmi_status(&mut self) -> Option<i32> {
+    if self.ppu.clear_nmi_interrupt {
+      self.ppu.clear_nmi_interrupt = false;
+      self.ppu.nmi_interrupt = None;
+      return None;
+    }
     let res = self.ppu.nmi_interrupt;
     self.ppu.nmi_interrupt = None;
     res
@@ -75,10 +82,19 @@ impl Mem for Bus<'_> {
       RAM..=RAM_MIRRORS_END => {
         //                            0x07FF
         let mirror_down_addr = addr & 0b0000_0111_1111_1111;
-        self.cpu_vram[mirror_down_addr as usize]
+        let v = self.cpu_vram[mirror_down_addr as usize];
+        trace!(
+          "RAM READ {:04X} => {:04X} ({:02X})",
+          addr,
+          mirror_down_addr,
+          v
+        );
+
+        v
       }
       0x2000 | 0x2001 | 0x2003 | 0x2005 | 0x2006 | 0x4014 => {
-        panic!("Attempt to read from write-only PPU address {:X}", addr);
+        warn!("Attempt to read from write-only PPU address {:X}", addr);
+        0
       }
       0x2002 => self.ppu.read_status(),
       0x2004 => self.ppu.read_oam_data(),
@@ -91,7 +107,7 @@ impl Mem for Bus<'_> {
       0x4017 => self.joypad2.read(),
       PRG_ROM..=PRG_ROM_END => self.read_prg_rom(addr),
       _ => {
-        println!("Ignoreing mem access at {}", addr);
+        warn!("Ignoreing mem access at {}", addr);
         0
       }
     }
@@ -143,6 +159,11 @@ impl Mem for Bus<'_> {
           values[i] = self.mem_read((data as u16) << 8 | i as u16);
         }
         self.ppu.write_to_oam_dma(values);
+
+        // OMA DMAにはCPUクロックが513サイクルかかる
+        for _ in 0..513 {
+          self.ppu.tick(1);
+        }
       }
       0x4016 => {
         self.joypad1.write(data);
@@ -151,10 +172,10 @@ impl Mem for Bus<'_> {
         self.joypad2.write(data);
       }
       PRG_ROM..=PRG_ROM_END => {
-        panic!("Attempt to write to Cartridge ROM space")
+        warn!("Attempt to write to Cartridge ROM space");
       }
       _ => {
-        println!("Ignoring mem write-access at {:X}", addr);
+        error!("Ignoring mem write-access at {:X}", addr);
       }
     }
   }

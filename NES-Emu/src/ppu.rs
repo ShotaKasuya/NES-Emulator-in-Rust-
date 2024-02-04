@@ -1,5 +1,6 @@
-use crate::rom::Mirroring;
-use bitflags::bitflags;
+use crate::{cpu::IN_TRACE, rom::Mirroring};
+use bitflags::{bitflags, Flags};
+use log::{debug, info, trace};
 
 pub struct NesPPU {
   pub chr_rom: Vec<u8>,
@@ -22,9 +23,13 @@ pub struct NesPPU {
   // TODO scroll 0x2005
   pub scroll: ScrollRegister,
   // TODO OAM DMA 0x4015
-  scanline: u16,
+  scanline: usize,
   cycles: usize,
   pub nmi_interrupt: Option<i32>,
+  pub clear_nmi_interrupt: bool,
+  // 同期的にパレットの色を変えるためのもの
+  pub scanline_palette_indexes: Vec<usize>,
+  pub scanline_palette_tables: Vec<[u8; 32]>,
 }
 
 impl NesPPU {
@@ -45,6 +50,9 @@ impl NesPPU {
       scanline: 0,
       cycles: 0,
       nmi_interrupt: None,
+      clear_nmi_interrupt: false,
+      scanline_palette_indexes: vec![],
+      scanline_palette_tables: vec![],
     }
   }
 
@@ -54,27 +62,109 @@ impl NesPPU {
 
   pub fn write_to_data(&mut self, value: u8) {
     let addr = self.addr.get();
-    self.increment_vram_addr();
+    if !unsafe { IN_TRACE } {
+      self.increment_vram_addr();
+    }
 
     match addr {
       0..=0x1FFF => {
-        // panic!(
-        //   "addr space 0x0000..0x1FFF is not expected to be used, requested = {:X} ",
-        //   addr,
-        // )
+        debug!("write CHR_ROM {:04X} => {:02X}", addr, value);
       }
       0x2000..=0x2FFF => {
+        trace!(
+          "WRITE PPU_VRAM {:04X} {:02X} => ({:02X})",
+          addr,
+          self.mirror_vram_addr(addr) as usize,
+          value
+        );
         self.vram[self.mirror_vram_addr(addr) as usize] = value;
       }
       0x3000..=0x3EFF => {
+        trace!(
+          "WRITE PPU_VRAM_MIRROR {:04X} {:02X} => ({:02X})",
+          addr,
+          self.mirror_vram_addr(addr) as usize,
+          value
+        );
         self.vram[self.mirror_vram_addr(addr) as usize] = value;
-        // panic!(
-        //   "addr space 0x3000..0x3EFF is not expected to be used, requested = {}",
-        //   addr
-        // )
       }
-      0x3F00..=0x3FFF => self.palette_table[(addr - 0x3F00) as usize] = value,
+      0x3F00..=0x3F1F => {
+        debug!(
+          "WRITE PALATTE {:04X} {:02X} => ({:02X}) SL={}",
+          addr,
+          self.mirror_palette_addr(addr) as usize,
+          value,
+          self.scanline
+        );
+        self.write_palette_table(addr, value);
+      }
+      0x3F20..=0x3FFF => {
+        debug!(
+          "WRITE PALATTE MIRROR {:04X} {:02X} => ({:02X}) SL={}",
+          addr,
+          self.mirror_palette_addr(addr),
+          value,
+          self.scanline
+        );
+        self.write_palette_table(addr, value);
+      }
       _ => panic!("unexpected access to mittord space {}", addr),
+    }
+  }
+
+  fn write_palette_table(&mut self, addr: u16, value: u8) {
+    let addr = self.mirror_palette_addr(addr) as usize;
+
+    // palette_tableには最新情報を入れておく
+    self.palette_table[addr] = value;
+
+    let scanline = self.scanline;
+    let last_scanline = self.scanline_palette_indexes.last().unwrap_or(&0);
+    if *last_scanline != scanline {
+      self.scanline_palette_indexes.push(scanline);
+      self
+        .scanline_palette_tables
+        .push(self.palette_table.clone());
+    } else {
+      self.scanline_palette_indexes.pop();
+      self
+        .scanline_palette_tables
+        .push(self.palette_table.clone());
+    }
+  }
+
+  fn clear_palette_table_histories(&mut self) {
+    self.scanline_palette_indexes = vec![];
+    self.scanline_palette_tables = vec![];
+  }
+
+  pub fn read_palette_table(&self, scanline: usize) -> &[u8; 32] {
+    if self.scanline_palette_indexes.is_empty() {
+      return &self.palette_table;
+    }
+
+    let mut index = 0;
+    for (i, s) in self.scanline_palette_indexes.iter().enumerate() {
+      if *s > scanline {
+        break;
+      }
+      index = i
+    }
+    info!("RPT SL={}, INDEX={}", scanline, index);
+    let table = &self.scanline_palette_tables[index];
+    info!("  => {:?}", table);
+    table
+  }
+
+  fn mirror_palette_addr(&self, addr: u16) -> u16 {
+    // see: https://taotao54321.hatenablog.com/entry/2017/04/11/115205
+    let addr = addr & 0b0001_1111;
+    match addr {
+      0x10 => 0x00,
+      0x14 => 0x04,
+      0x18 => 0x08,
+      0x1C => 0x0C,
+      _ => addr,
     }
   }
 
@@ -89,8 +179,15 @@ impl NesPPU {
 
   pub fn read_status(&mut self) -> u8 {
     // スクロール($2005)PPU_STATUSを読み取ってアドレスラッチをリセットしたあと
-    self.scroll.reset();
-    self.status.bits()
+    if unsafe { IN_TRACE } {
+      return self.status.bits();
+    } else {
+      self.scroll.reset();
+      let bits = self.status.bits();
+      self.status.reset_vblank_status();
+      self.clear_nmi_interrupt = true;
+      return bits;
+    }
   }
 
   pub fn write_to_status(&mut self, value: u8) {
@@ -106,6 +203,7 @@ impl NesPPU {
   }
 
   pub fn write_to_oam_data(&mut self, value: u8) {
+    debug!("OAM: {:04X} => {:02X}", self.oam_addr, value);
     self.oam_data[self.oam_addr as usize] = value;
     self.oam_addr = self.oam_addr.wrapping_add(1);
   }
@@ -115,6 +213,8 @@ impl NesPPU {
   }
 
   pub fn write_to_oam_dma(&mut self, values: [u8; 256]) {
+    debug!("OAM DMA: ADDR:{:02X}", self.oam_addr);
+    debug!("{:?}", values);
     self.oam_data = values;
   }
 
@@ -128,24 +228,51 @@ impl NesPPU {
 
   pub fn read_data(&mut self) -> u8 {
     let addr = self.addr.get();
-    self.increment_vram_addr();
+    if !unsafe { IN_TRACE } {
+      self.increment_vram_addr();
+    }
+    debug!("READ PPU: {:04X}", addr);
 
     match addr {
       0..=0x1FFF => {
-        let result = self.internal_data_buf;
-        self.internal_data_buf = self.chr_rom[addr as usize];
-        result
+        if unsafe { IN_TRACE } {
+          self.internal_data_buf
+        } else {
+          let result = self.internal_data_buf;
+          self.internal_data_buf = self.chr_rom[addr as usize];
+          result
+        }
       }
       0x2000..=0x2FFF => {
-        let result = self.internal_data_buf;
-        self.internal_data_buf = self.vram[self.mirror_vram_addr(addr) as usize];
-        result
+        if unsafe { IN_TRACE } {
+          self.internal_data_buf
+        } else {
+          let result = self.internal_data_buf;
+          self.internal_data_buf = self.vram[self.mirror_vram_addr(addr) as usize];
+          result
+        }
       }
-      0x3000..=0x3EFF => panic!(
-        "addr space 0x3000..0x3EFF is not expected to be used, requested = {}",
-        addr
-      ),
-      0x3F00..=0x3FFF => self.palette_table[(addr - 0x3F00) as usize],
+      0x3000..=0x3EFF => {
+        if unsafe { IN_TRACE } {
+          self.internal_data_buf
+        } else {
+          let result = self.internal_data_buf;
+          self.internal_data_buf = self.vram[self.mirror_vram_addr(addr) as usize];
+          result
+        }
+      }
+      0x3F00..=0x3F1F => {
+        if unsafe { IN_TRACE } {
+          self.internal_data_buf
+        } else {
+          self.internal_data_buf = self.palette_table[self.mirror_palette_addr(addr) as usize];
+          self.internal_data_buf
+        }
+      }
+      0x3F20..=0x3FFF => {
+        // TODO
+        0
+      }
       _ => panic!("unexpected access to mittord space {}", addr),
     }
   }
@@ -186,6 +313,7 @@ impl NesPPU {
         self.status.set_sprite_zero_hit(false);
         self.status.reset_vblank_status();
         self.nmi_interrupt = None;
+        self.clear_palette_table_histories();
         return true;
       }
 

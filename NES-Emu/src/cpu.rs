@@ -1,5 +1,9 @@
+use log::debug;
+
 use crate::bus::{Bus, Mem};
 use crate::opscodes::{call, CPU_OPS_CODES};
+
+pub static mut IN_TRACE: bool = false;
 
 #[derive(Debug, PartialEq, Clone)]
 #[allow(non_camel_case_types)]
@@ -92,6 +96,7 @@ pub fn trace(cpu: &mut CPU) -> String {
   let asm = disasm(program_counter, &ops, &args);
   let memacc = memory_access(cpu, &ops, &args);
   let status = cpu2str(cpu);
+  unsafe { IN_TRACE = false };
 
   format!(
     "{:<6}{:<9}{:<33}{}",
@@ -354,6 +359,7 @@ impl<'a> CPU<'a> {
 
   pub fn mem_read_u16(&mut self, pos: u16) -> u16 {
     if pos == 0xFF || pos == 0x02FF {
+      debug!("mem_read_u16 page boundary. {:04X}", pos);
       // メモリアクセス時のCPUバグ
       // https://www.nesdev.org/obelisk-6502-guide/reference.html#JMP
       let lo = self.mem_read(pos) as u16;
@@ -723,16 +729,14 @@ impl<'a> CPU<'a> {
   }
 
   pub fn _push_u16(&mut self, value: u16) {
-    let addr = 0x0100 + self.stack_pointer.wrapping_sub(1) as u16;
-    self.mem_write_u16(addr, value);
-    self.stack_pointer = self.stack_pointer.wrapping_sub(2);
+    self._push((value >> 8) as u8);
+    self._push((value & 0x00FF) as u8);
   }
 
   pub fn _pop_u16(&mut self) -> u16 {
-    let addr = 0x0100 + self.stack_pointer.wrapping_add(1) as u16;
-    let value = self.mem_read_u16(addr);
-    self.stack_pointer = self.stack_pointer.wrapping_add(2);
-    value
+    let lo = self._pop();
+    let hi = self._pop();
+    ((hi as u16) << 8) | lo as u16
   }
 
   // レジスタaの値とメモリの値の和をレジスタaに書き込む
