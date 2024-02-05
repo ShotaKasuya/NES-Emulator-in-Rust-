@@ -56,7 +56,8 @@ fn main() {
     .unwrap();
 
   // put CHR_ROM
-  let rom = bomb_sweeper_rom();
+  // let rom = bomb_sweeper_rom();
+  let rom = alter_ego_rom();
   let apu = NesAPU::new(&sdl_context);
   let mut frame = Frame::new();
 

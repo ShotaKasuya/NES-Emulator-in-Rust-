@@ -138,13 +138,13 @@ impl Mem for Bus<'_> {
         self.apu.write_1ch(addr, data);
       }
       0x4004..=0x4007 => {
-        // TODO APU 2ch
+        self.apu.write_2ch(addr, data);
       }
       0x4008 | 0x400A | 0x400B => {
-        // TODO APU 3ch
+        self.apu.write_3ch(addr, data);
       }
       0x400C | 0x400E | 0x400F => {
-        // TODO APU 4ch
+        self.apu.write_4ch(addr, data);
       }
       0x4010..=0x4013 | 0x4015 => {
         // TODO APU DMCch
