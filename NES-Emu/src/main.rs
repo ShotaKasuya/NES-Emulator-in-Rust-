@@ -12,12 +12,18 @@ use frame::show_tile;
 use frame::Frame;
 use joypad::Joypad;
 use log::trace;
+use pixels::{Pixels, SurfaceTexture};
+use winit::dpi::LogicalSize;
+use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 use ppu::NesPPU;
-use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
-use sdl2::pixels::Color;
-use sdl2::pixels::PixelFormatEnum;
-use sdl2::EventPump;
+// use sdl2::event::Event;
+// use sdl2::keyboard::Keycode;
+// use sdl2::pixels::Color;
+// use sdl2::pixels::PixelFormatEnum;
+// use sdl2::EventPump;
+use winit::event_loop::EventLoop;
+use winit::platform::run_return::EventLoopExtRunReturn;
+use winit::window::WindowBuilder;
 
 #[macro_use]
 extern crate lazy_static;
@@ -34,72 +40,106 @@ mod ppu;
 mod render;
 mod rom;
 
+const WINDOW_PIXEL_WIDTH: u32 = 256;
+const WINDOW_PIXEL_HEIGHT: u32= 240;
 fn main() {
   env_logger::init();
 
-  // init sdl2
-  let sdl_context = sdl2::init().unwrap();
-  let video_subsystem = sdl_context.video().unwrap();
-  let window = video_subsystem
-    .window("Nes Emurator", (256.0 * 2.0) as u32, (240.0 * 2.0) as u32)
-    .position_centered()
-    .build()
-    .unwrap();
-
-  let mut canvas = window.into_canvas().present_vsync().build().unwrap();
-  let mut event_pump = sdl_context.event_pump().unwrap();
-  canvas.set_scale(2.0, 2.0).unwrap();
-
-  let creator = canvas.texture_creator();
-  let mut texture = creator
-    .create_texture_target(PixelFormatEnum::RGB24, 256, 240)
-    .unwrap();
-
+  let mut event_loop = EventLoop::new();
+  let window = WindowBuilder::new()
+      .with_title("nes_emulator")
+      .with_inner_size(LogicalSize::new((256.*2.) as u32, (240.*2.)as u32))
+      .build(&event_loop)
+      .unwrap();
+  let mut pixels = {
+    let window_size = window.inner_size();
+    let surface_texture =SurfaceTexture::new(window_size.width,window_size.height,&window);
+    Pixels::new(WINDOW_PIXEL_WIDTH, WINDOW_PIXEL_HEIGHT, surface_texture).unwrap()
+  };
+  // // init sdl2
+  // let sdl_context = sdl2::init().unwrap();
+  // let video_subsystem = sdl_context.video().unwrap();
+  // let window = video_subsystem
+  //   .window("Nes Emurator", (256.0 * 2.0) as u32, (240.0 * 2.0) as u32)
+  //   .position_centered()
+  //   .build()
+  //   .unwrap();
+  //
+  // let mut canvas = window.into_canvas().present_vsync().build().unwrap();
+  // let mut event_pump = sdl_context.event_pump().unwrap();
+  // canvas.set_scale(2.0, 2.0).unwrap();
+  //
+  // let creator = canvas.texture_creator();
+  // let mut texture = creator
+  //   .create_texture_target(PixelFormatEnum::RGB24, 256, 240)
+  //   .unwrap();
+  //
   // put CHR_ROM
   // let rom = bomb_sweeper_rom();
   let rom = alter_ego_rom();
-  let apu = NesAPU::new(&sdl_context);
+  // let apu = NesAPU::new(&sdl_context);
   let mut frame = Frame::new();
 
   let mut key_map = HashMap::new();
-  key_map.insert(Keycode::Down, joypad::JoypadButton::DOWN);
-  key_map.insert(Keycode::Up, joypad::JoypadButton::UP);
-  key_map.insert(Keycode::Right, joypad::JoypadButton::RIGHT);
-  key_map.insert(Keycode::Left, joypad::JoypadButton::LEFT);
-  key_map.insert(Keycode::Space, joypad::JoypadButton::SELECT);
-  key_map.insert(Keycode::Return, joypad::JoypadButton::START);
-  key_map.insert(Keycode::A, joypad::JoypadButton::BUTTON_A);
-  key_map.insert(Keycode::S, joypad::JoypadButton::BUTTON_B);
+  key_map.insert(VirtualKeyCode::Down, joypad::JoypadButton::DOWN);
+  key_map.insert(VirtualKeyCode::Up, joypad::JoypadButton::UP);
+  key_map.insert(VirtualKeyCode::Right, joypad::JoypadButton::RIGHT);
+  key_map.insert(VirtualKeyCode::Left, joypad::JoypadButton::LEFT);
+  key_map.insert(VirtualKeyCode::Space, joypad::JoypadButton::SELECT);
+  key_map.insert(VirtualKeyCode::Return, joypad::JoypadButton::START);
+  key_map.insert(VirtualKeyCode::A, joypad::JoypadButton::BUTTON_A);
+  key_map.insert(VirtualKeyCode::S, joypad::JoypadButton::BUTTON_B);
 
-  let bus = Bus::new(rom, apu, move |ppu: &NesPPU, joypad1: &mut Joypad| {
+  let bus = Bus::new(rom, move |ppu: &NesPPU, joypad1: &mut Joypad| {
     // println!("***GAME LOOP***");
     render::render(ppu, &mut frame);
-    texture.update(None, &frame.data, 256 * 3).unwrap();
 
-    canvas.copy(&texture, None, None).unwrap();
-
-    canvas.present();
-    for event in event_pump.poll_iter() {
+    pixels.render().unwrap();
+    event_loop.run_return(|event, _, control_flow_inner| {
       match event {
-        Event::Quit { .. }
-        | Event::KeyDown {
-          keycode: Some(Keycode::Escape),
-          ..
-        } => std::process::exit(0),
-
-        Event::KeyDown { keycode, .. } => {
-          if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
-            joypad1.set_button_pressed_status(*key, true);
+        Event::WindowEvent {event: WindowEvent::KeyboardInput { input, .. }, ..} => {
+          if let Some(keycode) = input.virtual_keycode {
+            match input.state {
+              ElementState::Pressed => {
+                if keycode == VirtualKeyCode::Escape {
+                  std::process::exit(0);
+                }
+                if let key = key_map.get(&keycode) {
+                  joypad1.set_button_pressed_status(*key, true);
+                }
+              }
+              ElementState::Released => {
+                if let key = key_map.get(&keycode) {
+                  joypad1.set_button_pressed_status(*key, false);
+                }
+              }
+            }
           }
         }
-        Event::KeyUp { keycode, .. } => {
-          if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
-            joypad1.set_button_pressed_status(*key, false);
-          }
-        }
-        _ => { /* do nothing */ }
+        _ => {}
       }
-    }
+    });
+    // for event in event_pump.poll_iter() {
+    //   match event {
+    //     Event::Quit { .. }
+    //     | Event::KeyDown {
+    //       keycode: Some(Keycode::Escape),
+    //       ..
+    //     } => std::process::exit(0),
+    //
+    //     Event::KeyDown { keycode, .. } => {
+    //       if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
+    //         joypad1.set_button_pressed_status(*key, true);
+    //       }
+    //     }
+    //     Event::KeyUp { keycode, .. } => {
+    //       if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
+    //         joypad1.set_button_pressed_status(*key, false);
+    //       }
+    //     }
+    //     _ => { /* do nothing */ }
+    //   }
+    // }
   });
 
   let mut cpu = CPU::new(bus);

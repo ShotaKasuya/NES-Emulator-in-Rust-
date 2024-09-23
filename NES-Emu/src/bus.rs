@@ -6,7 +6,7 @@ pub struct Bus<'call> {
   cpu_vram: [u8; 0x800],
   prg_rom: Vec<u8>,
   ppu: NesPPU,
-  apu: NesAPU,
+  // apu: NesAPU,
   cycles: usize,
   joypad1: Joypad,
   joypad2: Joypad,
@@ -14,7 +14,7 @@ pub struct Bus<'call> {
 }
 
 impl<'a> Bus<'a> {
-  pub fn new<'call, F>(rom: Rom, apu: NesAPU, gameloop_callback: F) -> Bus<'call>
+  pub fn new<'call, F>(rom: Rom, gameloop_callback: F) -> Bus<'call>
   where
     F: FnMut(&NesPPU, &mut Joypad) + 'call,
   {
@@ -22,8 +22,8 @@ impl<'a> Bus<'a> {
     Bus {
       cpu_vram: [0; 0x800],
       prg_rom: rom.prg_rom,
-      ppu: ppu,
-      apu: apu,
+      ppu,
+      // apu: apu,
       joypad1: Joypad::new(),
       joypad2: Joypad::new(),
       cycles: 0,
@@ -135,16 +135,16 @@ impl Mem for Bus<'_> {
         self.mem_write(mirror_down_addr, data);
       }
       0x4000..=0x4003 => {
-        self.apu.write_1ch(addr, data);
+        // self.apu.write_1ch(addr, data);
       }
       0x4004..=0x4007 => {
-        self.apu.write_2ch(addr, data);
+        // self.apu.write_2ch(addr, data);
       }
       0x4008 | 0x400A | 0x400B => {
-        self.apu.write_3ch(addr, data);
+        // self.apu.write_3ch(addr, data);
       }
       0x400C | 0x400E | 0x400F => {
-        self.apu.write_4ch(addr, data);
+        // self.apu.write_4ch(addr, data);
       }
       0x4010..=0x4013 | 0x4015 => {
         // TODO APU DMCch
