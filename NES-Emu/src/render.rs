@@ -1,8 +1,7 @@
-use crate::frame::{self, Frame};
+use crate::frame::Frame;
+use crate::palette;
 use crate::ppu::NesPPU;
 use crate::rom::Mirroring;
-use crate::{main, palette};
-use log::{debug, info};
 
 struct Rect {
   x1: usize,

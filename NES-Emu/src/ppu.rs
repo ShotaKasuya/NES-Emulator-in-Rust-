@@ -1,5 +1,5 @@
 use crate::{cpu::IN_TRACE, rom::Mirroring};
-use bitflags::{bitflags, Flags};
+use bitflags::bitflags;
 use log::{debug, info, trace};
 
 pub struct NesPPU {

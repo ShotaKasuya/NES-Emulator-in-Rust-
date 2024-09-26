@@ -378,7 +378,7 @@ impl<'a> CPU<'a> {
     self.mem_write(pos + 1, hi);
   }
 
-  fn load_and_run(&mut self, program: Vec<u8>) {
+  fn load_and_run(&mut self, _program: Vec<u8>) {
     self.load();
     self.reset();
     self.run()
@@ -461,23 +461,23 @@ impl<'a> CPU<'a> {
     return None;
   }
 
-  pub fn anc(&mut self, mode: &AddressingMode) {
+  pub fn anc(&mut self, _mode: &AddressingMode) {
     todo!("anc")
   }
 
-  pub fn asr(&mut self, mode: &AddressingMode) {
+  pub fn asr(&mut self, _mode: &AddressingMode) {
     todo!("asr")
   }
 
-  pub fn arr(&mut self, mode: &AddressingMode) {
+  pub fn arr(&mut self, _mode: &AddressingMode) {
     todo!("arr")
   }
 
-  pub fn lxa(&mut self, mode: &AddressingMode) {
+  pub fn lxa(&mut self, _mode: &AddressingMode) {
     todo!("lxa")
   }
 
-  pub fn sha(&mut self, mode: &AddressingMode) {
+  pub fn sha(&mut self, _mode: &AddressingMode) {
     todo!("sha")
   }
 
@@ -501,7 +501,7 @@ impl<'a> CPU<'a> {
     todo!("sbx")
   }
 
-  pub fn jam(&mut self, mode: &AddressingMode) {
+  pub fn jam(&mut self, _mode: &AddressingMode) {
     // Stop porogram counter (processor lock up).
     self.program_counter -= 1;
     panic!("CALL JAM operation.");

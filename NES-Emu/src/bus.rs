@@ -1,6 +1,6 @@
 use log::{error, trace, warn};
 
-use crate::{apu::NesAPU, joypad::Joypad, ppu::NesPPU, rom::Rom};
+use crate::{joypad::Joypad, ppu::NesPPU, rom::Rom};
 
 pub struct Bus<'call> {
   cpu_vram: [u8; 0x800],
@@ -65,7 +65,7 @@ impl<'a> Bus<'a> {
 
 const RAM: u16 = 0x0000;
 const RAM_MIRRORS_END: u16 = 0x1FFF;
-const PPU_REGISTERS: u16 = 0x2000;
+// const PPU_REGISTERS: u16 = 0x2000;
 const PPU_REGISTERS_MIRRORS_END: u16 = 0x3FFF;
 
 const PRG_ROM: u16 = 0x8000;
