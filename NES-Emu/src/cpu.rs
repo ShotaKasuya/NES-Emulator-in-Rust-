@@ -68,7 +68,7 @@ const FLAG_DECIMAL: u8 = 1 << 3;
 const FLAG_BREAK: u8 = 1 << 4;
 const FLAG_BREAK2: u8 = 1 << 5;
 const FLAG_OVERFLOW: u8 = 1 << 6;
-const FLAG_NEGATICE: u8 = 1 << 7;
+const FLAG_NEGATIVE: u8 = 1 << 7;
 
 pub struct CPU<'a> {
   pub register_a: u8,
@@ -842,7 +842,7 @@ impl<'a> CPU<'a> {
     } else {
       self.status & (!FLAG_ZERO)
     };
-    let flags = FLAG_NEGATICE | FLAG_OVERFLOW;
+    let flags = FLAG_NEGATIVE | FLAG_OVERFLOW;
     self.status = (self.status & !flags) | (value & flags);
   }
 
@@ -873,7 +873,7 @@ impl<'a> CPU<'a> {
 
   // ネガティブフラグが立っていたら分岐
   pub fn bmi(&mut self, _mode: &AddressingMode) {
-    self._branch(_mode, FLAG_NEGATICE, true);
+    self._branch(_mode, FLAG_NEGATIVE, true);
   }
 
   // ゼロフラグがクリアなら分岐
@@ -883,7 +883,7 @@ impl<'a> CPU<'a> {
 
   // ネガティブフラグがクリアなら分岐
   pub fn bpl(&mut self, _mode: &AddressingMode) {
-    self._branch(_mode, FLAG_NEGATICE, false);
+    self._branch(_mode, FLAG_NEGATIVE, false);
   }
 
   // オーバーフローフラグのクリア
@@ -1150,9 +1150,9 @@ impl<'a> CPU<'a> {
   fn update_zero_and_negative_flags(&mut self, result: u8) {
     // ネガティブフラグ
     self.status = if result & 0b1000_0000 != 0 {
-      self.status | FLAG_NEGATICE
+      self.status | FLAG_NEGATIVE
     } else {
-      self.status & (!FLAG_NEGATICE)
+      self.status & (!FLAG_NEGATIVE)
     };
 
     // ゼロフラグ
@@ -1171,9 +1171,6 @@ impl<'a> CPU<'a> {
 mod test {
 
   use super::*;
-  use crate::bus::Bus;
-  use crate::cartridge::test_rom;
-  use crate::ppu::NesPPU;
 
   /*
    #[test]
